@@ -262,7 +262,7 @@ while True:
     dirname="/home/allskycam/zwo-imgs/"
     datedir=time.strftime("%Y/%m/%d/", time.gmtime(now))
     distutils.dir_util.mkpath(dirname+datedir)
-    filename=time.strftime("%H%M%S.png", time.gmtime(now))
+    filename=time.strftime("%Y%m%dT%H%M%S.png", time.gmtime(now))
 
     print "Queue Save: %f"%(time.time()-now)
     #saveimage(newimage,dirname+datedir+filename,dirname+"latest.png")
