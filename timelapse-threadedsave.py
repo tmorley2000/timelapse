@@ -9,21 +9,26 @@ import numpy
 import math
 import Queue
 import threading
-
+from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
 
+parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
+parser.add_argument('--minexp', type=int, default=0, help='Minimum exposure (us)')
+parser.add_argument('--maxexp', type=int, default=0, help='Minimum exposure (us)')
+parser.add_argument('--mingain', type=int, default=0, help='Minimum gain (%% of camera full gain)')
+parser.add_argument('--maxgain', type=int, default=98, help='Maximum gain (%% of camera full gain)')
+parser.add_argument('--idealgain', type=int, default=60, help='Ideal gain (%% of camera full gain)')
+parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
+parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
+parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
+parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
 
-from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
-
-env_filename = os.getenv('ZWO_ASI_LIB')
-
-fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
-fontsize=12
-font=ImageFont.truetype(fontfile,fontsize)
+args = parser.parse_args()
 
 # Initialize zwoasi with the name of the SDK library
-if env_filename:
-    asi.init(env_filename)
+if args.zwo_asi_lib:
+    asi.init(args.zwo_asi_lib)
 else:
     print('The filename of the SDK library is required set ZWO_ASI_LIB environment variable with the filename')
     sys.exit(1)
@@ -50,13 +55,11 @@ camera = asi.Camera(camera_id)
 camera_info = camera.get_camera_property()
 
 # Get all of the camera controls
-#print('')
-#print('Camera controls:')
-#controls = camera.get_controls()
-#for cn in sorted(controls.keys()):
-#    print('    %s:' % cn)
-#    for k in sorted(controls[cn].keys()):
-#        print('        %s: %s' % (k, repr(controls[cn][k])))
+controls = camera.get_controls()
+for cn in sorted(controls.keys()):
+    print('    %s:' % cn)
+    for k in sorted(controls[cn].keys()):
+        print('        %s: %s' % (k, repr(controls[cn][k])))
 
 
 # Use minimum USB bandwidth permitted
@@ -88,32 +91,23 @@ except (KeyboardInterrupt, SystemExit):
 except:
     pass
 
+fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
+fontsize=12
+font=ImageFont.truetype(fontfile,fontsize)
+
 #Usable Expsure range
-minexp=1.0
-maxexp=10000000.0
+minexp=float(args.minexp)
+maxexp=float(args.maxexp)
 
 #Usable gain range
 #mingain=125
 #maxgain=125
-mingain=0.0
-maxgain=250.0
+mingain=float(controls["Gain"]["MaxValue"])*float(args.mingain)/100
+maxgain=float(controls["Gain"]["MaxValue"])*float(args.maxgain)/100
 
-idealgain=189-30
+idealgain=float(controls["Gain"]["MaxValue"])*float(args.idealgain)/100
 
-
-#def gainexp(targetexp):
-#    if targetexp<minexp:
-#        return (0,1)
-#
-#    if targetexp<maxexp:
-#        return (0,int(targetexp))
-#
-#    g=30*math.log(targetexp/maxexp,2)
-#
-#    if g>maxgain:
-#        return(int(maxgain),int(maxexp))
-#
-#    return (int(g),int(maxexp))
+print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
 # 30 far too much, even though gain is db*10??
 #doublegain=30
@@ -142,23 +136,23 @@ def gainexp(exp0):
 	exp0=newexp0
         return (int(gain),int(exp),exp0)
 
-def saveimage(image,filename,symlinkname):
+def saveimage(image,dirname,filename,symlinkname):
 	now=time.time()
-	image.save(filename)
-	os.symlink(filename,symlinkname+".new")
-	os.rename(symlinkname+".new",symlinkname)
+	image.save(dirname+"/"+filename)
+	os.symlink(filename,dirname+"/"+symlinkname+".new")
+	os.rename(dirname+"/"+symlinkname+".new",dirname+"/"+symlinkname)
 	print "Threaded save to %s in %f"%(filename,time.time()-now)
 
 saverqueue=Queue.Queue()
 
 def saverworker():
 	while True:
-		(image,filename,symlinkname)=saverqueue.get()
-		saveimage(image,filename,symlinkname)
+		(image,dirname,filename,symlinkname)=saverqueue.get()
+		saveimage(image,dirname,filename,symlinkname)
 		saverqueue.task_done()
 
 worker=threading.Thread(target=saverworker)
-worker.deamon=True
+worker.setDaemon(True)
 worker.start()
 
 # Initial values
@@ -168,19 +162,16 @@ exp0=1
 # Brightness to target
 tgtavg=80
 
-# Image every 15 seconds
-every=15
-
 lasttime=time.time()
-nexttime=every*int(1+time.time()/every)
+nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
 #filenametemplate="data/img%06d.jpg"
 filenametemplate="/img%06d.png"
 latest="latest.png"
 latestnew="latest.new.png"
 
-camera.set_image_type(asi.ASI_IMG_RGB24)
-#camera.set_image_type(asi.ASI_IMG_RAW16)
+#camera.set_image_type(asi.ASI_IMG_RGB24)
+camera.set_image_type(asi.ASI_IMG_RAW16)
 #camera.set_image_type(asi.ASI_IMG_Y8)
 
 while True:
@@ -194,7 +185,7 @@ while True:
 	now=time.time()
 	print "Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime)
 
-    nexttime+=every
+    nexttime+=args.interval
 
     print "Start:   %f"%(now)
 
@@ -207,7 +198,6 @@ while True:
     camera.set_control_value(asi.ASI_GAIN, int(gain))
     camera.set_control_value(asi.ASI_EXPOSURE, int(exp))
 
-    filename = filenametemplate % frameno
     print "Capture: %f"%(time.time()-now)
     pxls=camera.capture()
 
@@ -216,16 +206,24 @@ while True:
     print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
     mode = None
     if len(pxls.shape) == 3:
-       pxls = pxls[:, :, ::-1]  # Convert BGR to RGB
-       mode="RGB"
+        pxls = pxls[:, :, ::-1]  # Convert BGR to RGB
+        mode="RGB"
     if camera.get_image_type() == asi.ASI_IMG_RAW16:
         mode = 'I;16'
+        # Simple debayer and convert to 8bit
+        r=pxls[::2,::2]
+        g1=pxls[1::2,::2].astype("uint32")
+        g2=pxls[::2,1::2].astype("uint32")
+        g=((g1+g2)/2).astype("uint16")
+        b=pxls[1::2,1::2]
+        pxls=(numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
+        mode="RGB"
     newimage = Image.fromarray(pxls, mode=mode)
 
     print "Text:    %f"%(time.time()-now)
     width=0
     height=0
-    textimage=Image.new("RGB",(width,height+1))
+    textimage=Image.new(mode,(width,height+1))
     draw=ImageDraw.Draw(textimage)
 
     text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),int(exp),int(gain)),
@@ -259,18 +257,16 @@ while True:
 
     newimage.paste(textimage,(0,0))
 
-    dirname="/home/allskycam/zwo-imgs/"
-    datedir=time.strftime("%Y/%m/%d/", time.gmtime(now))
-    distutils.dir_util.mkpath(dirname+datedir)
-    filename=time.strftime("%Y%m%dT%H%M%S.png", time.gmtime(now))
+    if "/" in args.filename:
+        distutils.dir_util.mkpath(time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
+    filename=time.strftime(args.filename, time.gmtime(now))
 
     print "Queue Save: %f"%(time.time()-now)
-    #saveimage(newimage,dirname+datedir+filename,dirname+"latest.png")
-    saverqueue.put((newimage,dirname+datedir+filename,dirname+"latest.png"))
+    #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+    saverqueue.put((newimage,args.dirname,filename,args.latest))
 
     #avg=numpy.average(pxls)
     # Center weight!
-    print "%s %s"%(str(pxls.shape),str(pxls[(pxls.shape[0]/3):(2*pxls.shape[0]/3),(pxls.shape[1]/3):(2*pxls.shape[1]/3),...].shape))
     avg=numpy.average(pxls[(pxls.shape[0]/3):(2*pxls.shape[0]/3),(pxls.shape[1]/3):(2*pxls.shape[1]/3),...])
     exp0=(exp0*tgtavg/avg+3*exp0)/4
 
