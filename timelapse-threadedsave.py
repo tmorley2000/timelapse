@@ -14,15 +14,17 @@ import distutils.dir_util
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
-parser.add_argument('--minexp', type=int, default=0, help='Minimum exposure (us)')
-parser.add_argument('--maxexp', type=int, default=0, help='Minimum exposure (us)')
-parser.add_argument('--mingain', type=int, default=0, help='Minimum gain (%% of camera full gain)')
-parser.add_argument('--maxgain', type=int, default=98, help='Maximum gain (%% of camera full gain)')
-parser.add_argument('--idealgain', type=int, default=60, help='Ideal gain (%% of camera full gain)')
+parser.add_argument('--minexp', type=float, default=0.0, help='Minimum exposure (us)')
+parser.add_argument('--maxexp', type=float, default=0.0, help='Minimum exposure (us)')
+parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
+parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
+parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
+parser.add_argument('--font', type=str, default='/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf', help='TTF font file for overlay text')
+parser.add_argument('--fontsize', type=float, default=12.0, help='Font size for overlay text')
 
 args = parser.parse_args()
 
@@ -80,7 +82,6 @@ camera.set_control_value(asi.ASI_GAMMA, 50)
 camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
 camera.set_control_value(asi.ASI_FLIP, 0)
 
-
 #print('Enabling stills mode')
 try:
     # Force any single exposure to be halted
@@ -91,21 +92,17 @@ except (KeyboardInterrupt, SystemExit):
 except:
     pass
 
-fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
-fontsize=12
-font=ImageFont.truetype(fontfile,fontsize)
+font=ImageFont.truetype(args.font,args.fontsize)
 
 #Usable Expsure range
-minexp=float(args.minexp)
-maxexp=float(args.maxexp)
+minexp=args.minexp
+maxexp=args.maxexp
 
 #Usable gain range
-#mingain=125
-#maxgain=125
-mingain=float(controls["Gain"]["MaxValue"])*float(args.mingain)/100
-maxgain=float(controls["Gain"]["MaxValue"])*float(args.maxgain)/100
+mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
+maxgain=float(controls["Gain"]["MaxValue"])*args.maxgain/100
 
-idealgain=float(controls["Gain"]["MaxValue"])*float(args.idealgain)/100
+idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
@@ -165,10 +162,6 @@ tgtavg=80
 lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
-#filenametemplate="data/img%06d.jpg"
-filenametemplate="/img%06d.png"
-latest="latest.png"
-latestnew="latest.new.png"
 
 #camera.set_image_type(asi.ASI_IMG_RGB24)
 camera.set_image_type(asi.ASI_IMG_RAW16)
@@ -272,22 +265,9 @@ while True:
 
     exp0=max(1.0,exp0)
 
-#    if exp>maxexp:
-#        exp=maxexp
-#        gain=gain*1.5
-#    if exp<minexp:
-#        exp=minexp
-#        gain=gain*.75
-#    if gain>maxgain:
-#        gain=maxgain
-#    if gain<mingain:
-#        gain=mingain
-
     (gain,exp,exp0)=gainexp(exp0)
 
     print("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain))
-    #save_control_values(filename, camera.get_control_values())
-
 
     frameno+=1
     
