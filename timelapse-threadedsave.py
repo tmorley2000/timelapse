@@ -15,7 +15,7 @@ import distutils.dir_util
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
 parser.add_argument('--minexp', type=float, default=0.0, help='Minimum exposure (us)')
-parser.add_argument('--maxexp', type=float, default=0.0, help='Minimum exposure (us)')
+parser.add_argument('--maxexp', type=float, default=10000000.0, help='Maximum exposure (us)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
@@ -24,7 +24,7 @@ parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to s
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
 parser.add_argument('--font', type=str, default='/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf', help='TTF font file for overlay text')
-parser.add_argument('--fontsize', type=float, default=12.0, help='Font size for overlay text')
+parser.add_argument('--fontsize', type=int, default=12, help='Font size for overlay text')
 
 args = parser.parse_args()
 
@@ -209,6 +209,11 @@ while True:
         g2=pxls[::2,1::2].astype("uint32")
         g=((g1+g2)/2).astype("uint16")
         b=pxls[1::2,1::2]
+
+        r=(((r.astype(float)/65536)**0.52)*65536)
+        g=(((g.astype(float)/65536)**0.52)*65536)
+        b=(((b.astype(float)/65536)**0.52)*65536)
+
         pxls=(numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
         mode="RGB"
     newimage = Image.fromarray(pxls, mode=mode)
