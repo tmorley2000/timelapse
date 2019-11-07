@@ -14,7 +14,7 @@ import distutils.dir_util
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
-parser.add_argument('--minexp', type=float, default=0.0, help='Minimum exposure (us)')
+parser.add_argument('--minexp', type=float, default=32.0, help='Minimum exposure (us)')
 parser.add_argument('--maxexp', type=float, default=10000000.0, help='Maximum exposure (us)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
@@ -153,7 +153,7 @@ worker.setDaemon(True)
 worker.start()
 
 # Initial values
-exp0=1
+exp0=args.minexp*(2**(idealgain/doublegain))
 (gain,exp,exp0)=gainexp(exp0)
 
 # Brightness to target
@@ -163,8 +163,8 @@ lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
 
-#camera.set_image_type(asi.ASI_IMG_RGB24)
-camera.set_image_type(asi.ASI_IMG_RAW16)
+camera.set_image_type(asi.ASI_IMG_RGB24)
+#camera.set_image_type(asi.ASI_IMG_RAW16)
 #camera.set_image_type(asi.ASI_IMG_Y8)
 
 while True:
@@ -255,9 +255,10 @@ while True:
 
     newimage.paste(textimage,(0,0))
 
-    if "/" in args.filename:
-        distutils.dir_util.mkpath(time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
     filename=time.strftime(args.filename, time.gmtime(now))
+
+    if "/" in args.filename:
+        distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
 
     print "Queue Save: %f"%(time.time()-now)
     #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
