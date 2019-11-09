@@ -11,6 +11,7 @@ import Queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
+import cv2
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
@@ -20,6 +21,7 @@ parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%%
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
+parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
@@ -163,9 +165,66 @@ lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
 
-camera.set_image_type(asi.ASI_IMG_RGB24)
-#camera.set_image_type(asi.ASI_IMG_RAW16)
-#camera.set_image_type(asi.ASI_IMG_Y8)
+def cvdebayer16to8(pxls):
+    #return (cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)/256).astype("uint8")
+    return cv2.cvtColor((pxls/256).astype("uint8"), cv2.COLOR_BAYER_BG2RGB)
+
+def cvdebayer(pxls):
+    return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)
+
+
+def debayer16to8(pxls):
+    r=pxls[::2,::2]
+    g1=pxls[1::2,::2].astype("uint32")
+    g2=pxls[::2,1::2].astype("uint32")
+    g=((g1+g2)/2).astype("uint16")
+    b=pxls[1::2,1::2]
+
+#    r=(((r.astype(float)/65536)**0.52)*65536)
+#    g=(((g.astype(float)/65536)**0.52)*65536)
+#    b=(((b.astype(float)/65536)**0.52)*65536)
+
+    return (numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
+
+
+def debayer8(pxls):
+    r=pxls[::2,::2]
+    g1=pxls[1::2,::2].astype("uint16")
+    g2=pxls[::2,1::2].astype("uint16")
+    g=((g1+g2)/2).astype("uint8")
+    b=pxls[1::2,1::2]
+
+#    r=(((r.astype(float)/65536)**0.52)*65536)
+#    g=(((g.astype(float)/65536)**0.52)*65536)
+#    b=(((b.astype(float)/65536)**0.52)*65536)
+
+    return numpy.stack((r,g,b),axis=-1)
+
+
+def bgr2rgb(pxls):
+    return pxls[:, :, ::-1]  # Convert BGR to RGB
+
+if args.imagemode == "RAW16":
+    camera.set_image_type(asi.ASI_IMG_RAW16)
+    outputmode='RGB'
+    postprocess= debayer16to8
+    postprocess= cvdebayer16to8
+elif args.imagemode == "RAW8":
+    camera.set_image_type(asi.ASI_IMG_RAW8)
+    outputmode='RGB'
+    postprocess= debayer8
+    postprocess= cvdebayer
+elif args.imagemode == "Y8":
+    camera.set_image_type(asi.ASI_IMG_Y8)
+    outputmode='L'
+    postprocess=None
+else:
+    camera.set_image_type(asi.ASI_IMG_RGB24)
+    outputmode='RGB'
+    postprocess=bgr2rgb
+
+#mode = 'I;16' <---- 16 bit raw mode
+
 
 while True:
     now=time.time()
@@ -197,31 +256,17 @@ while True:
     cameratemp=float(camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
 
     print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
-    mode = None
-    if len(pxls.shape) == 3:
-        pxls = pxls[:, :, ::-1]  # Convert BGR to RGB
-        mode="RGB"
-    if camera.get_image_type() == asi.ASI_IMG_RAW16:
-        mode = 'I;16'
-        # Simple debayer and convert to 8bit
-        r=pxls[::2,::2]
-        g1=pxls[1::2,::2].astype("uint32")
-        g2=pxls[::2,1::2].astype("uint32")
-        g=((g1+g2)/2).astype("uint16")
-        b=pxls[1::2,1::2]
 
-        r=(((r.astype(float)/65536)**0.52)*65536)
-        g=(((g.astype(float)/65536)**0.52)*65536)
-        b=(((b.astype(float)/65536)**0.52)*65536)
-
-        pxls=(numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
-        mode="RGB"
-    newimage = Image.fromarray(pxls, mode=mode)
+    t0=time.time()
+    if postprocess is not None:
+        pxls=postprocess(pxls)
+    print "debayer %f"%(time.time()-t0)
+    newimage = Image.fromarray(pxls, mode=outputmode)
 
     print "Text:    %f"%(time.time()-now)
     width=0
     height=0
-    textimage=Image.new(mode,(width,height+1))
+    textimage=Image.new(outputmode,(width,height+1))
     draw=ImageDraw.Draw(textimage)
 
     text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),int(exp),int(gain)),
