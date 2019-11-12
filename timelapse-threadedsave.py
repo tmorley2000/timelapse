@@ -15,6 +15,7 @@ import cv2
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
+parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
 parser.add_argument('--minexp', type=float, default=32.0, help='Minimum exposure (us)')
 parser.add_argument('--maxexp', type=float, default=10000000.0, help='Maximum exposure (us)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
@@ -44,16 +45,26 @@ if num_cameras == 0:
 
 cameras_found = asi.list_cameras()  # Models names of the connected cameras
 
-if num_cameras == 1:
-    camera_id = 0
-    print('Found one camera: %s' % cameras_found[0])
-else:
-    print('Found %d cameras' % num_cameras)
+if args.cameraname is not None:
+    camera_id=-1
     for n in range(num_cameras):
-        print('    %d: %s' % (n, cameras_found[n]))
-    # TO DO: allow user to select a camera
-    camera_id = 0
-    print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
+        if args.cameraname == cameras_found[n]:
+            camera_id=n
+            break
+    if camera_id==-1:
+        print('Unable to find camera "%s".'%(args.cameraname))
+        sys.exit(1)
+else:
+    if num_cameras == 1:
+        camera_id = 0
+        print('Found one camera: %s' % cameras_found[0])
+    else:
+        print('Found %d cameras' % num_cameras)
+        for n in range(num_cameras):
+            print('    %d: %s' % (n, cameras_found[n]))
+            # TO DO: allow user to select a camera
+        camera_id = 0
+print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
 
 camera = asi.Camera(camera_id)
 camera_info = camera.get_camera_property()
@@ -76,15 +87,13 @@ camera.disable_dark_subtract()
 
 offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
 
-#print gain_lowest_RN,offset_lowest_RN
-
 camera.set_control_value(asi.ASI_WB_B, 95)
 camera.set_control_value(asi.ASI_WB_R, 52)
 camera.set_control_value(asi.ASI_GAMMA, 50)
 camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
 camera.set_control_value(asi.ASI_FLIP, 0)
 
-#print('Enabling stills mode')
+#Reset Camera
 try:
     # Force any single exposure to be halted
     camera.stop_video_capture()

@@ -11,15 +11,19 @@ import Queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
+import cv2
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
-parser.add_argument('--minexp', type=int, default=0, help='Minimum exposure (us)')
-parser.add_argument('--maxexp', type=int, default=10000000, help='Maximum exposure (us)')
+parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
+parser.add_argument('--minexp', type=int, default=1000, help='Minimum exposure (us)')
+parser.add_argument('--maxexp', type=int, default=1000000, help='Maximum exposure (us)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
+parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
+parser.add_argument('--stacksize', type=int, default=15, help='When camera auto exp is atax, stack this many frames per output frame')
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
@@ -42,16 +46,26 @@ if num_cameras == 0:
 
 cameras_found = asi.list_cameras()  # Models names of the connected cameras
 
-if num_cameras == 1:
-    camera_id = 0
-    print('Found one camera: %s' % cameras_found[0])
-else:
-    print('Found %d cameras' % num_cameras)
+if args.cameraname is not None:
+    camera_id=-1
     for n in range(num_cameras):
-        print('    %d: %s' % (n, cameras_found[n]))
-    # TO DO: allow user to select a camera
-    camera_id = 0
-    print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
+        if args.cameraname == cameras_found[n]:
+            camera_id=n
+            break
+    if camera_id==-1:
+        print('Unable to find camera "%s".'%(args.cameraname))
+        sys.exit(1)
+else:
+    if num_cameras == 1:
+        camera_id = 0
+        print('Found one camera: %s' % cameras_found[0])
+    else:
+        print('Found %d cameras' % num_cameras)
+        for n in range(num_cameras):
+            print('    %d: %s' % (n, cameras_found[n]))
+            # TO DO: allow user to select a camera
+        camera_id = 0
+print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
 
 camera = asi.Camera(camera_id)
 camera_info = camera.get_camera_property()
@@ -74,15 +88,13 @@ camera.disable_dark_subtract()
 
 offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
 
-#print gain_lowest_RN,offset_lowest_RN
-
 camera.set_control_value(asi.ASI_WB_B, 95)
 camera.set_control_value(asi.ASI_WB_R, 52)
 camera.set_control_value(asi.ASI_GAMMA, 50)
 camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
 camera.set_control_value(asi.ASI_FLIP, 0)
 
-#print('Enabling stills mode')
+#Reset Camera
 try:
     # Force any single exposure to be halted
     camera.stop_video_capture()
@@ -96,42 +108,15 @@ font=ImageFont.truetype(args.font,args.fontsize)
 
 #Usable Expsure range
 minexp=args.minexp
-maxexp=args.maxexp
+maxexp=args.maxexp/1000 # Auto exp uses ms not us
 
 #Usable gain range
-mingain=int(float(controls["Gain"]["MaxValue"])*args.mingain/100)
-maxgain=int(float(controls["Gain"]["MaxValue"])*args.maxgain/100)
+mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
+maxgain=float(controls["Gain"]["MaxValue"])*args.maxgain/100
 
 idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
-
-# 30 far too much, even though gain is db*10??
-#doublegain=30
-doublegain=15
-
-def gainexp(exp0):
-        idealexp=exp0/2**(idealgain/doublegain)
-        exp=idealexp
-        gain=idealgain
-
-
-        if idealexp < minexp:
-         exp=minexp
-         gain=doublegain*math.log(exp0/exp,2)
-        elif idealexp > maxexp:
-         exp=maxexp
-         gain=doublegain*math.log(exp0/exp,2)
-
-        if gain<mingain:
-         gain=mingain
-        elif gain>maxgain:
-         gain=maxgain
-
-	newexp0=exp*2**(gain/doublegain)
-	print "gainexp: exp0 %f gain %f exp %f"%(exp0,gain,exp)
-	exp0=newexp0
-        return (int(gain),int(exp),exp0)
 
 def saveimage(image,dirname,filename,symlinkname):
 	now=time.time()
@@ -152,10 +137,6 @@ worker=threading.Thread(target=saverworker)
 worker.setDaemon(True)
 worker.start()
 
-# Initial values
-#exp0=1
-#(gain,exp,exp0)=gainexp(exp0)
-
 # Brightness to target
 tgtavg=80
 
@@ -163,136 +144,238 @@ lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
 
-#camera.set_image_type(asi.ASI_IMG_RGB24)
-camera.set_image_type(asi.ASI_IMG_RAW16)
-#camera.set_image_type(asi.ASI_IMG_Y8)
+def cvdebayer16to8(pxls):
+    #return (cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)/256).astype("uint8")
+    return cv2.cvtColor((pxls/256).astype("uint8"), cv2.COLOR_BAYER_BG2RGB)
 
-camera.set_control_value(asi.ASI_EXPOSURE,minexp)
-camera.set_control_value(asi.ASI_GAIN,mingain)
+def cvdebayer(pxls):
+    return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)
+
+
+def debayer16to8(pxls):
+    r=pxls[::2,::2]
+    g1=pxls[1::2,::2].astype("uint32")
+    g2=pxls[::2,1::2].astype("uint32")
+    g=((g1+g2)/2).astype("uint16")
+    b=pxls[1::2,1::2]
+
+#    r=(((r.astype(float)/65536)**0.52)*65536)
+#    g=(((g.astype(float)/65536)**0.52)*65536)
+#    b=(((b.astype(float)/65536)**0.52)*65536)
+
+    return (numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
+
+
+def debayer8(pxls):
+    r=pxls[::2,::2]
+    g1=pxls[1::2,::2].astype("uint16")
+    g2=pxls[::2,1::2].astype("uint16")
+    g=((g1+g2)/2).astype("uint8")
+    b=pxls[1::2,1::2]
+
+#    r=(((r.astype(float)/65536)**0.52)*65536)
+#    g=(((g.astype(float)/65536)**0.52)*65536)
+#    b=(((b.astype(float)/65536)**0.52)*65536)
+
+    return numpy.stack((r,g,b),axis=-1)
+
+
+def bgr2rgb(pxls):
+    return pxls[:, :, ::-1]  # Convert BGR to RGB
+
+if args.imagemode == "RAW16":
+    camera.set_image_type(asi.ASI_IMG_RAW16)
+    outputmode='RGB'
+    postprocess= debayer16to8
+    postprocess= cvdebayer16to8
+elif args.imagemode == "RAW8":
+    camera.set_image_type(asi.ASI_IMG_RAW8)
+    outputmode='RGB'
+    postprocess= debayer8
+    postprocess= cvdebayer
+elif args.imagemode == "Y8":
+    camera.set_image_type(asi.ASI_IMG_Y8)
+    outputmode='L'
+    postprocess=None
+else:
+    camera.set_image_type(asi.ASI_IMG_RGB24)
+    outputmode='RGB'
+    postprocess=bgr2rgb
+
+#mode = 'I;16' <---- 16 bit raw mode
+
+
+camera.set_control_value(asi.ASI_GAIN, int(mingain) , True)
+camera.set_control_value(asi.ASI_EXPOSURE, minexp, True)
+
+camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, int(maxgain) , True)
+camera.set_control_value(asi.ASI_AUTO_MAX_EXP, maxexp , True)
 
 camera.start_video_capture()
-
-pxls=None
-
+dropped=camera.get_dropped_frames()
+stacks=[]
 while True:
     now=time.time()
-    wait=nexttime-now
-#    print "Pause: lasttime %f nexttime %f now %f wait %f"%(lasttime,nexttime,now,wait)
-#    while now<nexttime:
-#	wait=max(nexttime-now,0.1)
-#	time.sleep(wait)
-#	lasttime=now
-#	now=time.time()
-#	print "Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime)
-#
-#    nexttime+=args.interval
+    currentexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    currentgain=camera.get_control_value(asi.ASI_GAIN)[0]
+    print "currentexp %d currentgain %d"%(currentexp,currentgain)
+    if (currentexp/1000)>=maxexp:
+        # Gain at max, stack away
+        print "Stacking"
+        pxls=camera.capture_video_frame()
+        for a in stacks:
+            if a[0]==args.stacksize:
+                print "Saving stack of %d frames"%(a[1])
+                stacks.remove(a)
+                p=a[3]
+                # save a
+                if postprocess is not None:
+                    p=postprocess(p)
+                newimage = Image.fromarray(p, mode=outputmode)
+                filename=time.strftime(args.filename, time.gmtime(a[2]))
 
-    print "Start:   %f"%(now)
+                if "/" in args.filename:
+                    distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(a[2])))
 
-    systemtempfile=open("/sys/class/thermal/thermal_zone0/temp","r")
-    systemtemp=float(systemtempfile.readline().strip())/1000
-    systemtempfile.close()
+                #print "Queue Save: %f"%(time.time()-now)
+                #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+                saverqueue.put((newimage,args.dirname,filename,args.latest))
+            else:
+                a[0]=a[0]+1
+                a[1]=a[1]+currentexp
+                a[3]=a[3]+pxls
 
-    print "Setup:   %f"%(time.time()-now)
-
-#    camera.set_control_value(asi.ASI_GAIN, int(gain))
-#    camera.set_control_value(asi.ASI_EXPOSURE, int(exp))
-
-#    print "Capture: %f"%(time.time()-now)
-
-    print "Droppped Frames",camera.get_dropped_frames()
-    #pxls=camera.capture()	
-    newpxls=camera.capture_video_frame()
-
-    if pxls is None:
-	pxls=newpxls.astype("uint32")
+        if now>=nexttime:
+            stacks.append([1,currentexp,now, pxls])
+            nexttime+=args.interval
     else:
-	pxls+=newpxls
+        # Save and image and pause for a bit.
+        print "Not Stacking"
+        # Clear out partial stacks
+        for a in stacks:
+            stacks.remove(a)
+            pxls=a[3]
+            if postprocess is not None:
+                pxls=postprocess(pxls)
+            newimage = Image.fromarray(pxls, mode=outputmode)
+            filename=time.strftime(args.filename, time.gmtime(a[2]))
+            if "/" in args.filename:
+                distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(a[2])))
 
-    frameno=frameno+1
+            #print "Queue Save: %f"%(time.time()-now)
+            #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+            saverqueue.put((newimage,args.dirname,filename,args.latest))
 
-    if frameno%15!=0:
-	continue
+        wait=nexttime-now
+        while now<nexttime:
+            wait=max(nexttime-now,0.1)
+            time.sleep(wait)
+            now=time.time()
 
+        pxls=camera.capture_video_frame()        
+        if postprocess is not None:
+            pxls=postprocess(pxls)
+        newimage = Image.fromarray(pxls, mode=outputmode)
+        filename=time.strftime(args.filename, time.gmtime(now))
+        if "/" in args.filename:
+            distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
 
-    cameratemp=float(camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
+        #print "Queue Save: %f"%(time.time()-now)
+        #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+        saverqueue.put((newimage,args.dirname,filename,args.latest))
 
-    print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
-    mode = None
-    if len(pxls.shape) == 3:
-        pxls = pxls[:, :, ::-1]  # Convert BGR to RGB
-        mode="RGB"
-    if camera.get_image_type() == asi.ASI_IMG_RAW16:
-        mode = 'I;16'
-        # Simple debayer and convert to 8bit
-        r=pxls[::2,::2]
-        g1=pxls[1::2,::2]
-        g2=pxls[::2,1::2]
-        g=((g1+g2)/2)
-        b=pxls[1::2,1::2]
+        nexttime+=args.interval
+            
+    
+    # now=time.time()
+    # wait=nexttime-now
+    # print "Pause: lasttime %f nexttime %f now %f wait %f"%(lasttime,nexttime,now,wait)
+    # while now<nexttime:
+    #     wait=max(nexttime-now,0.1)
+    #     time.sleep(wait)
+    #     lasttime=now
+    #     now=time.time()
+    #     print "Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime)
 
-        r=numpy.clip(((r.astype(float)/65536)**0.52)*65536,0,65535)
-        g=numpy.clip(((g.astype(float)/65536)**0.52)*65536,0,65535)
-        b=numpy.clip(((b.astype(float)/65536)**0.52)*65536,0,65535)
+    # nexttime+=args.interval
 
-        pxls=(numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
-        mode="RGB"
-    newimage = Image.fromarray(pxls, mode=mode)
+    # print "Start:   %f"%(now)
 
-    print "Text:    %f"%(time.time()-now)
-    width=0
-    height=0
-    textimage=Image.new(mode,(width,height+1))
-    draw=ImageDraw.Draw(textimage)
+    # print "Setup:   %f"%(time.time()-now)
 
-    text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),int(minexp),int(mingain)),
-          "Camera Temp %.1f\260C System Temp %.1f\260C"%(cameratemp,systemtemp),]
+    # print "Capture: %f"%(time.time()-now)
+    # pxls=camera.capture_video_frame()
 
-    for line in text:
-        (w,h)=draw.textsize(line,font=font)
-        if width < (w+2):
-            newwidth=w+2
-        newheight=height+h
-        newtextimage=Image.new("RGB",(newwidth,newheight+1))
-        newtextimage.paste(textimage,(0,0))
+    # cameratemp=float(camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
 
-        draw=ImageDraw.Draw(newtextimage)
-        draw.text((1,height),line,font=font)
+    # print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
+    # print "Dropped: %d"%(camera.get_dropped_frames())
+    # t0=time.time()
+    # if postprocess is not None:
+    #     pxls=postprocess(pxls)
+    # print "debayer %f"%(time.time()-t0)
+    # newimage = Image.fromarray(pxls, mode=outputmode)
 
-        width=newwidth
-        height=newheight
-        textimage=newtextimage
+    # print "Text:    %f"%(time.time()-now)
+    # width=0
+    # height=0
+    # textimage=Image.new(outputmode,(width,height+1))
+    # draw=ImageDraw.Draw(textimage)
 
-    heightmultiple=16
-    widthmultiple=16
+    # systemtempfile=open("/sys/class/thermal/thermal_zone0/temp","r")
+    # systemtemp=float(systemtempfile.readline().strip())/1000
+    # systemtempfile.close()
 
-    newheight=(((height+1-1)/heightmultiple)+1)*heightmultiple
-    newwidth=(((width-1)/widthmultiple)+1)*widthmultiple
+    # text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),camera.get_control_value(asi.ASI_EXPOSURE)[0],camera.get_control_value(asi.ASI_GAIN)[0]),
+    #       "Camera Temp %.1f\260C System Temp %.1f\260C"%(cameratemp,systemtemp),]
 
-    if width!=newwidth or height!=newheight:
-        newtextimage=Image.new("RGB",(newwidth,newheight))
-        newtextimage.paste(textimage,(0,0))
-        textimage=newtextimage
+    # for line in text:
+    #     (w,h)=draw.textsize(line,font=font)
+    #     if width < (w+2):
+    #         newwidth=w+2
+    #     newheight=height+h
+    #     newtextimage=Image.new("RGB",(newwidth,newheight+1))
+    #     newtextimage.paste(textimage,(0,0))
 
-    newimage.paste(textimage,(0,0))
+    #     draw=ImageDraw.Draw(newtextimage)
+    #     draw.text((1,height),line,font=font)
 
-    if "/" in args.filename:
-        distutils.dir_util.mkpath(time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
-    filename=time.strftime(args.filename, time.gmtime(now))
+    #     width=newwidth
+    #     height=newheight
+    #     textimage=newtextimage
 
-    print "Queue Save: %f"%(time.time()-now)
-    #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
-    saverqueue.put((newimage,args.dirname,filename,args.latest))
+    # heightmultiple=16
+    # widthmultiple=16
 
-    #avg=numpy.average(pxls)
-    # Center weight!
-#    avg=numpy.average(pxls[(pxls.shape[0]/3):(2*pxls.shape[0]/3),(pxls.shape[1]/3):(2*pxls.shape[1]/3),...])
-#    exp0=(exp0*tgtavg/avg+3*exp0)/4
-#
-#    exp0=max(1.0,exp0)
-#
-#    (gain,exp,exp0)=gainexp(exp0)
-#
-#    print("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain))
+    # newheight=(((height+1-1)/heightmultiple)+1)*heightmultiple
+    # newwidth=(((width-1)/widthmultiple)+1)*widthmultiple
 
-    pxls=None
+    # if width!=newwidth or height!=newheight:
+    #     newtextimage=Image.new("RGB",(newwidth,newheight))
+    #     newtextimage.paste(textimage,(0,0))
+    #     textimage=newtextimage
+
+    # newimage.paste(textimage,(0,0))
+
+    # filename=time.strftime(args.filename, time.gmtime(now))
+
+    # if "/" in args.filename:
+    #     distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
+
+    # print "Queue Save: %f"%(time.time()-now)
+    # #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+    # saverqueue.put((newimage,args.dirname,filename,args.latest))
+
+    # # #avg=numpy.average(pxls)
+    # # # Center weight!
+    # # avg=numpy.average(pxls[(pxls.shape[0]/3):(2*pxls.shape[0]/3),(pxls.shape[1]/3):(2*pxls.shape[1]/3),...])
+    # # exp0=(exp0*tgtavg/avg+3*exp0)/4
+
+    # # exp0=max(1.0,exp0)
+
+    # # (gain,exp,exp0)=gainexp(exp0)
+
+    # # print("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain))
+
+    # frameno+=1
+    
