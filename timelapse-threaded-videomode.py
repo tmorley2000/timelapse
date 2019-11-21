@@ -16,11 +16,12 @@ import cv2
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
 parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
-parser.add_argument('--minexp', type=int, default=1000, help='Minimum exposure (us)')
-parser.add_argument('--maxexp', type=int, default=1000000, help='Maximum exposure (us)')
+parser.add_argument('--startexp', type=int, default=1000, help='Minimum exposure (ms)')
+parser.add_argument('--maxexp', type=int, default=1000000, help='Maximum exposure (ms)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
+parser.add_argument('--tgtbrightness', type=int, default=100, help='Target brightness valuefor auto exp (50-160)')
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--stacksize', type=int, default=15, help='When camera auto exp is atax, stack this many frames per output frame')
@@ -92,6 +93,7 @@ camera.set_control_value(asi.ASI_WB_B, 95)
 camera.set_control_value(asi.ASI_WB_R, 52)
 camera.set_control_value(asi.ASI_GAMMA, 50)
 camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
+camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
 camera.set_control_value(asi.ASI_FLIP, 0)
 
 #Reset Camera
@@ -107,8 +109,8 @@ except:
 font=ImageFont.truetype(args.font,args.fontsize)
 
 #Usable Expsure range
-minexp=args.minexp
-maxexp=args.maxexp/1000 # Auto exp uses ms not us
+startexp=args.startexp
+maxexp=args.maxexp # Auto exp uses ms not us
 
 #Usable gain range
 mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
@@ -186,27 +188,35 @@ def bgr2rgb(pxls):
 if args.imagemode == "RAW16":
     camera.set_image_type(asi.ASI_IMG_RAW16)
     outputmode='RGB'
+    stacktype='uint32'
+    clipmin,clipmax=(0,65535)
     postprocess= debayer16to8
     postprocess= cvdebayer16to8
 elif args.imagemode == "RAW8":
     camera.set_image_type(asi.ASI_IMG_RAW8)
     outputmode='RGB'
+    stacktype='uint16'
+    clipmin,clipmax=(0,255)
     postprocess= debayer8
     postprocess= cvdebayer
 elif args.imagemode == "Y8":
     camera.set_image_type(asi.ASI_IMG_Y8)
     outputmode='L'
+    stacktype='uint16'
+    clipmin,clipmax=(0,255)
     postprocess=None
 else:
     camera.set_image_type(asi.ASI_IMG_RGB24)
     outputmode='RGB'
+    stacktype='uint16'
+    clipmin,clipmax=(0,255)
     postprocess=bgr2rgb
 
 #mode = 'I;16' <---- 16 bit raw mode
 
 
 camera.set_control_value(asi.ASI_GAIN, int(mingain) , True)
-camera.set_control_value(asi.ASI_EXPOSURE, minexp, True)
+camera.set_control_value(asi.ASI_EXPOSURE, startexp*1000, True)
 
 camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, int(maxgain) , True)
 camera.set_control_value(asi.ASI_AUTO_MAX_EXP, maxexp , True)
@@ -216,19 +226,23 @@ dropped=camera.get_dropped_frames()
 stacks=[]
 while True:
     now=time.time()
-    currentexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    currentexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]/1000
     currentgain=camera.get_control_value(asi.ASI_GAIN)[0]
-    print "currentexp %d currentgain %d"%(currentexp,currentgain)
-    if (currentexp/1000)>=maxexp:
+    currentbrightness=camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
+    print "currentexp %d currentgain %d currentbrightness %d"%(currentexp,currentgain,currentbrightness)
+    if (currentexp)>=maxexp:
         # Gain at max, stack away
         print "Stacking"
         pxls=camera.capture_video_frame()
+	print "Image min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
         for a in stacks:
             if a[0]==args.stacksize:
-                print "Saving stack of %d frames"%(a[1])
+                print "Saving stack of %d frames total exp %d"%(a[0],a[1])
                 stacks.remove(a)
                 p=a[3]
                 # save a
+		print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
+		p=numpy.clip(p,clipmin,clipmax)
                 if postprocess is not None:
                     p=postprocess(p)
                 newimage = Image.fromarray(p, mode=outputmode)
@@ -246,7 +260,7 @@ while True:
                 a[3]=a[3]+pxls
 
         if now>=nexttime:
-            stacks.append([1,currentexp,now, pxls])
+            stacks.append([1,currentexp,now, pxls.astype(stacktype)])
             nexttime+=args.interval
     else:
         # Save and image and pause for a bit.
@@ -273,6 +287,7 @@ while True:
             now=time.time()
 
         pxls=camera.capture_video_frame()        
+	print "Image brightness: %d"%(numpy.average(pxls))
         if postprocess is not None:
             pxls=postprocess(pxls)
         newimage = Image.fromarray(pxls, mode=outputmode)
