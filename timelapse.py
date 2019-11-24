@@ -10,6 +10,7 @@ import math
 
 import distutils.dir_util
 
+import timelapseutils
 
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 
@@ -19,72 +20,7 @@ fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
 fontsize=12
 font=ImageFont.truetype(fontfile,fontsize)
 
-# Initialize zwoasi with the name of the SDK library
-if env_filename:
-    asi.init(env_filename)
-else:
-    print('The filename of the SDK library is required set ZWO_ASI_LIB environment variable with the filename')
-    sys.exit(1)
-
-num_cameras = asi.get_num_cameras()
-if num_cameras == 0:
-    print('No cameras found')
-    sys.exit(0)
-
-cameras_found = asi.list_cameras()  # Models names of the connected cameras
-
-if num_cameras == 1:
-    camera_id = 0
-    print('Found one camera: %s' % cameras_found[0])
-else:
-    print('Found %d cameras' % num_cameras)
-    for n in range(num_cameras):
-        print('    %d: %s' % (n, cameras_found[n]))
-    # TO DO: allow user to select a camera
-    camera_id = 0
-    print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
-
-camera = asi.Camera(camera_id)
-camera_info = camera.get_camera_property()
-
-# Get all of the camera controls
-#print('')
-#print('Camera controls:')
-#controls = camera.get_controls()
-#for cn in sorted(controls.keys()):
-#    print('    %s:' % cn)
-#    for k in sorted(controls[cn].keys()):
-#        print('        %s: %s' % (k, repr(controls[cn][k])))
-
-
-# Use minimum USB bandwidth permitted
-camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()['BandWidth']['MinValue'])
-
-# Set some sensible defaults. They will need adjusting depending upon
-# the sensitivity, lens and lighting conditions used.
-
-camera.disable_dark_subtract()
-
-offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
-
-#print gain_lowest_RN,offset_lowest_RN
-
-camera.set_control_value(asi.ASI_WB_B, 95)
-camera.set_control_value(asi.ASI_WB_R, 52)
-camera.set_control_value(asi.ASI_GAMMA, 50)
-camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
-camera.set_control_value(asi.ASI_FLIP, 0)
-
-
-#print('Enabling stills mode')
-try:
-    # Force any single exposure to be halted
-    camera.stop_video_capture()
-    camera.stop_exposure()
-except (KeyboardInterrupt, SystemExit):
-    raise
-except:
-    pass
+camera,camera_info,controls=timelapseutils.asiinit(env_filename)
 
 #Usable Expsure range
 minexp=1.0
@@ -178,9 +114,8 @@ while True:
 
     print "Start:   %f"%(now)
 
-    systemtempfile=open("/sys/class/thermal/thermal_zone0/temp","r")
-    systemtemp=float(systemtempfile.readline().strip())/1000
-    systemtempfile.close()
+    systemtemp=timelapseutils.getsystemp()
+    
 
     print "Setup:   %f"%(time.time()-now)
 
