@@ -18,8 +18,8 @@ import timelapseutils
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'), help='Location of ASI library, default from ZWO_ASI_LIB')
 parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
-parser.add_argument('--startexp', type=int, default=1000, help='Minimum exposure (ms)')
-parser.add_argument('--maxexp', type=int, default=1000000, help='Maximum exposure (ms)')
+parser.add_argument('--startexp', type=int, default=1, help='Minimum exposure (ms)')
+parser.add_argument('--maxexp', type=int, default=1000, help='Maximum exposure (ms)')
 parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%% of camera full gain)')
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
@@ -55,12 +55,11 @@ idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
-# Brightness to target
-tgtavg=80
-
 lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
+
+tgtbrightness=args.tgtbrightness
 
 if args.imagemode == "RAW16":
     camera.set_image_type(asi.ASI_IMG_RAW16)
@@ -69,6 +68,7 @@ if args.imagemode == "RAW16":
     clipmin,clipmax=(0,65535)
     postprocess= timelapseutils.debayer16to8
     postprocess= timelapseutils.cvdebayer16to8
+    tgtbrightness=tgtbrightness*256
 elif args.imagemode == "RAW8":
     camera.set_image_type(asi.ASI_IMG_RAW8)
     outputmode='RGB'
@@ -100,6 +100,8 @@ dropped=camera.get_dropped_frames()
 stacks=[]
 while True:
     now=time.time()
+    pxls=camera.capture_video_frame()
+    print "Frame min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
     rawexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
     currentexp=rawexp/1000
     currentgain=camera.get_control_value(asi.ASI_GAIN)[0]
@@ -108,10 +110,8 @@ while True:
     if (currentexp)>=maxexp:
         # Gain at max, stack away
         print "Stacking"
-        pxls=camera.capture_video_frame()
-	print "Image min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
         for a in stacks:
-            if a[0]==args.stacksize:
+            if numpy.average(a[3])>tgtbrightness or a[0]==args.stacksize:
                 print "Saving stack of %d frames total exp %d"%(a[0],a[1])
                 stacks.remove(a)
                 p=a[3]
@@ -128,7 +128,7 @@ while True:
 
                 #print "Queue Save: %f"%(time.time()-now)
                 #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
-                saverqueue.put((newimage,args.dirname,filename,args.latest))
+                timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
             else:
                 a[0]=a[0]+1
                 a[1]=a[1]+currentexp
@@ -153,7 +153,7 @@ while True:
 
             #print "Queue Save: %f"%(time.time()-now)
             #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
-            saverqueue.put((newimage,args.dirname,filename,args.latest))
+            timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
 
         wait=nexttime-now
         while now<nexttime:
@@ -161,8 +161,6 @@ while True:
             time.sleep(wait)
             now=time.time()
 
-        pxls=camera.capture_video_frame()        
-	print "Image brightness: %d"%(numpy.average(pxls))
         if postprocess is not None:
             pxls=postprocess(pxls)
         newimage = Image.fromarray(pxls, mode=outputmode)

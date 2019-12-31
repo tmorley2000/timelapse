@@ -6,7 +6,7 @@ import sys
 #import time
 import zwoasi as asi
 #import numpy
-#import math
+import math
 import Queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
@@ -57,9 +57,8 @@ def asiinit(zwo_asi_lib,cameraname=None):
     camera_info = camera.get_camera_property()
     controls = camera.get_controls()
     for cn in sorted(controls.keys()):
-        print('    %s:' % cn)
-        for k in sorted(controls[cn].keys()):
-            print('        %s: %s' % (k, repr(controls[cn][k])))
+        #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys()))))
+        print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys())))))
 
 
     # Use minimum USB bandwidth permitted
@@ -71,6 +70,31 @@ def asiinit(zwo_asi_lib,cameraname=None):
     camera.disable_dark_subtract()
 
     offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
+
+    print("offset_highest_DR %d"%offset_highest_DR)
+    print("offset_unity_gain %d"%offset_unity_gain)
+    print("gain_lowest_RN %d"%gain_lowest_RN)
+    print("offset_lowest_RN %d"%offset_lowest_RN)
+
+    print("ElecPerADU %f"%camera_info['ElecPerADU'])
+    print("BitDepth %d"%camera_info['BitDepth'])
+
+    unitygain=10*20*math.log10(camera_info['ElecPerADU'])
+    fullwell=(2**camera_info['BitDepth'])*camera_info['ElecPerADU']
+
+    print("unitygain %f"%unitygain)
+    print("fullwell %f"%fullwell)
+
+    g=10**(gain_lowest_RN/200.0)
+
+    print("g %f"%g)
+    print("gfw %f"%(fullwell/g))
+
+    g=10**(unitygain/200.0)
+
+    print("g %f"%g)
+    print("gfw %f"%(fullwell/g))
+
 
     camera.set_control_value(asi.ASI_WB_B, 95)
     camera.set_control_value(asi.ASI_WB_R, 52)

@@ -52,6 +52,7 @@ idealgain=189-30
 # 30 far too much, even though gain is db*10??
 #doublegain=30
 doublegain=15
+doublegain=60
 
 def gainexp(exp0):
         idealexp=exp0/2**(idealgain/doublegain)
