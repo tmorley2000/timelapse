@@ -50,9 +50,7 @@ idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
-# 60 far too much, even though gain is db*10??
-#doublegain=30
-doublegain=15
+# Useful numbers from http://skyinspector.co.uk/zwo-cmos-digital-video-cameras
 doublegain=60
 
 def gainexp(exp0):

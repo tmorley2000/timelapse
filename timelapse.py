@@ -49,9 +49,7 @@ idealgain=189-30
 #
 #    return (int(g),int(maxexp))
 
-# 30 far too much, even though gain is db*10??
-#doublegain=30
-doublegain=15
+# Useful numbers from http://skyinspector.co.uk/zwo-cmos-digital-video-cameras
 doublegain=60
 
 def gainexp(exp0):
