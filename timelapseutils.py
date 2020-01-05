@@ -5,12 +5,12 @@ import os
 import sys
 #import time
 import zwoasi as asi
-#import numpy
+import numpy
 import math
 import Queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
-#import distutils.dir_util
+import distutils.dir_util
 import cv2
 
 ##################################################################################
@@ -71,31 +71,6 @@ def asiinit(zwo_asi_lib,cameraname=None):
 
     offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
 
-    print("offset_highest_DR %d"%offset_highest_DR)
-    print("offset_unity_gain %d"%offset_unity_gain)
-    print("gain_lowest_RN %d"%gain_lowest_RN)
-    print("offset_lowest_RN %d"%offset_lowest_RN)
-
-    print("ElecPerADU %f"%camera_info['ElecPerADU'])
-    print("BitDepth %d"%camera_info['BitDepth'])
-
-    unitygain=10*20*math.log10(camera_info['ElecPerADU'])
-    fullwell=(2**camera_info['BitDepth'])*camera_info['ElecPerADU']
-
-    print("unitygain %f"%unitygain)
-    print("fullwell %f"%fullwell)
-
-    g=10**(gain_lowest_RN/200.0)
-
-    print("g %f"%g)
-    print("gfw %f"%(fullwell/g))
-
-    g=10**(unitygain/200.0)
-
-    print("g %f"%g)
-    print("gfw %f"%(fullwell/g))
-
-
     camera.set_control_value(asi.ASI_WB_B, 95)
     camera.set_control_value(asi.ASI_WB_R, 52)
     camera.set_control_value(asi.ASI_GAMMA, 50)
@@ -120,9 +95,12 @@ def asiinit(zwo_asi_lib,cameraname=None):
 # Background thread to save off an image, png or jpeg encoding can be slow!
 #
 def saveimage(image,dirname,filename,symlinkname):
-    image.save(dirname+"/"+filename)
-    os.symlink(filename,dirname+"/"+symlinkname+".new")
-    os.rename(dirname+"/"+symlinkname+".new",dirname+"/"+symlinkname)
+    if "/" in filename:
+        distutils.dir_util.mkpath(os.path.dirname(os.path.join(dirname,filename)))
+
+    image.save(os.path.join(dirname,filename),quality=95)
+    os.symlink(filename,os.path.join(dirname,symlinkname+".new"))
+    os.rename(os.path.join(dirname,symlinkname+".new"),os.path.join(dirname,symlinkname))
     
 saverqueue=Queue.Queue()
 
@@ -132,10 +110,9 @@ def saverworker():
 	saveimage(image,dirname,filename,symlinkname)
 	saverqueue.task_done()
         
-worker=threading.Thread(target=saverworker)
-worker.setDaemon(True)
-worker.start()
-
+saverworkerthread=threading.Thread(target=saverworker)
+saverworkerthread.setDaemon(True)
+saverworkerthread.start()
 
 ##################################################################################
 #
@@ -157,6 +134,10 @@ def debayer16to8(pxls):
     g2=pxls[::2,1::2].astype("uint32")
     g=((g1+g2)/2).astype("uint16")
     b=pxls[1::2,1::2]
+
+    r=r-numpy.min(r)
+    g=g-numpy.min(g)
+    b=b-numpy.min(b)
 
 #    r=(((r.astype(float)/65536)**0.52)*65536)
 #    g=(((g.astype(float)/65536)**0.52)*65536)
@@ -215,6 +196,7 @@ def inlaytext(img,text,font):
 
         width,height,textimage=(newwidth,newheight,newtextimage)
 
+    # Make black box a multiple of 16 on each dimension, useful is pasting into pre-encoded jpg.
     # heightmultiple=16
     # widthmultiple=16
 
