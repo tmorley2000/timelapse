@@ -71,6 +71,31 @@ def asiinit(zwo_asi_lib,cameraname=None):
 
     offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
 
+    print("offset_highest_DR %d"%offset_highest_DR)
+    print("offset_unity_gain %d"%offset_unity_gain)
+    print("gain_lowest_RN %d"%gain_lowest_RN)
+    print("offset_lowest_RN %d"%offset_lowest_RN)
+
+    print("ElecPerADU %f"%camera_info['ElecPerADU'])
+    print("BitDepth %d"%camera_info['BitDepth'])
+
+    unitygain=10*20*math.log10(camera_info['ElecPerADU'])
+    fullwell=(2**camera_info['BitDepth'])*camera_info['ElecPerADU']
+
+    print("unitygain %f"%unitygain)
+    print("fullwell %f"%fullwell)
+
+    g=10**(gain_lowest_RN/200.0)
+
+    print("g %f"%g)
+    print("gfw %f"%(fullwell/g))
+
+    g=10**(unitygain/200.0)
+
+    print("g %f"%g)
+    print("gfw %f"%(fullwell/g))
+
+
     camera.set_control_value(asi.ASI_WB_B, 95)
     camera.set_control_value(asi.ASI_WB_R, 52)
     camera.set_control_value(asi.ASI_GAMMA, 50)
