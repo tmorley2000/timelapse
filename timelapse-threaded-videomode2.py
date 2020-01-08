@@ -35,11 +35,12 @@ parser.add_argument('--fontsize', type=int, default=12, help='Font size for over
 
 args = parser.parse_args()
 
-
-camera,camera_info,controls=timelapseutils.asiinit(args.zwo_asi_lib,args.cameraname)
+# camera,camera_info,controls=timelapseutils.asiinit(args.zwo_asi_lib,args.cameraname)
+camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
+camera.opencamera(args.cameraname)
 
 # Set target brightness for auto gain
-camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
+camera.set_auto_max_brightness(args.tgtbrightness)
 
 font=ImageFont.truetype(args.font,args.fontsize)
 
@@ -48,10 +49,10 @@ startexp=args.startexp
 maxexp=args.maxexp # Auto exp uses ms not us
 
 #Usable gain range
-mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
-maxgain=float(controls["Gain"]["MaxValue"])*args.maxgain/100
+mingain=float(camera.get_max_gain())*args.mingain/100
+maxgain=float(camera.get_max_gain())*args.maxgain/100
 
-idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
+idealgain=float(camera.get_max_gain())*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
@@ -93,25 +94,25 @@ else:
 mode=0 
 
 def mode0():
-    exp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    exp=camera.get_exposure()
     print "Enter Mode 0 exp %d"%(exp)
                 
-    camera.set_control_value(asi.ASI_AUTO_MAX_EXP, maxexp , True)
-    camera.set_control_value(asi.ASI_EXPOSURE, exp, True)
+    camera.set_max_auto_exposure( maxexp , True)
+    camera.set_exposure( exp, True)
 
-    camera.set_control_value(asi.ASI_GAIN, int(mingain) , False)
+    camera.set_gain( int(mingain) , False)
 
     global mode
     mode=0
 
 def mode1():
-    gain=camera.get_control_value(asi.ASI_GAIN)[0]
+    gain=camera.get_gain()
     print "Enter Mode 1 gain %d"%(gain)
 
-    camera.set_control_value(asi.ASI_EXPOSURE, maxexp*1000, False)
+    camera.set_exposure( maxexp*1000, False)
 
-    camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, int(maxgain) , True)
-    camera.set_control_value(asi.ASI_GAIN, gain+1, True)
+    camera.set_max_auto_gain( int(maxgain) , True)
+    camera.set_gain( gain+1, True)
 
     global mode
     mode=1
@@ -123,10 +124,10 @@ dropped=camera.get_dropped_frames()
 stacks=[]
 while True:
     now=time.time()
-    rawexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    rawexp=camera.get_exposure()
     currentexp=rawexp/1000
-    currentgain=camera.get_control_value(asi.ASI_GAIN)[0]
-    currentbrightness=camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
+    currentgain=camera.get_gain()
+    currentbrightness=camera.get_brightness()
 
     print "currentexp %d currentgain %d currentbrightness %d"%(rawexp,currentgain,currentbrightness)
 

@@ -35,11 +35,11 @@ parser.add_argument('--fontsize', type=int, default=12, help='Font size for over
 
 args = parser.parse_args()
 
-
-camera,camera_info,controls=timelapseutils.asiinit(args.zwo_asi_lib,args.cameraname)
+camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
+camera.opencamera(args.cameraname)
 
 # Set target brightness for auto gain
-camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
+camera.set_auto_max_brightness(args.tgtbrightness)
 
 font=ImageFont.truetype(args.font,args.fontsize)
 
@@ -48,10 +48,10 @@ startexp=args.startexp
 maxexp=args.maxexp # Auto exp uses ms not us
 
 #Usable gain range
-mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
-maxgain=float(controls["Gain"]["MaxValue"])*args.maxgain/100
+mingain=float(camera.get_max_gain())*args.mingain/100
+maxgain=float(camera.get_max_gain())*args.maxgain/100
 
-idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
+idealgain=float(camera.get_max_gain())*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
@@ -89,11 +89,11 @@ else:
     clipmin,clipmax=(0,255)
     postprocess=timelapseutils.bgr2rgb
 
-camera.set_control_value(asi.ASI_GAIN, int(mingain) , True)
-camera.set_control_value(asi.ASI_EXPOSURE, startexp*1000, True)
+camera.set_gain( int(mingain) , True)
+camera.set_exposure( startexp*1000, True)
 
-camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, int(maxgain) , True)
-camera.set_control_value(asi.ASI_AUTO_MAX_EXP, maxexp , True)
+camera.set_max_auto_gain( int(maxgain) , True)
+camera.set_max_auto_exposure( maxexp , True)
 
 camera.start_video_capture()
 dropped=camera.get_dropped_frames()
@@ -102,10 +102,10 @@ while True:
     now=time.time()
     pxls=camera.capture_video_frame()
     print "Frame min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
-    rawexp=camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    rawexp=camera.get_exposure()
     currentexp=rawexp/1000
-    currentgain=camera.get_control_value(asi.ASI_GAIN)[0]
-    currentbrightness=camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
+    currentgain=camera.get_gain()
+    currentbrightness=camera.get_brightness()
     print "currentexp %d currentgain %d currentbrightness %d"%(rawexp,currentgain,currentbrightness)
     if (currentexp)>=maxexp:
         # Gain at max, stack away

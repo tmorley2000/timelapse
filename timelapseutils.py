@@ -15,106 +15,158 @@ import cv2
 
 ##################################################################################
 #
-# Camera setup
+# Wrap the ASI camera up in a class
 #
-def asiinit(zwo_asi_lib,cameraname=None):
-    # Initialize zwoasi with the name of the SDK library
-    if zwo_asi_lib:
-        asi.init(zwo_asi_lib)
-    else:
-        print('The filename of the SDK library is required set ZWO_ASI_LIB environment variable with the filename')
-        sys.exit(1)
 
-    num_cameras = asi.get_num_cameras()
-    if num_cameras == 0:
-        print('No cameras found')
-        sys.exit(0)
+class timelapsecamera:
+    """Wrapped up camera object"""
 
-    cameras_found = asi.list_cameras()  # Models names of the connected cameras
-
-    if cameraname is not None:
-        camera_id=-1
-        for n in range(num_cameras):
-            if cameraname == cameras_found[n]:
-                camera_id=n
-                break
-        if camera_id==-1:
-            print('Unable to find camera "%s".'%(cameraname))
-            sys.exit(1)
-    else:
-        if num_cameras == 1:
-            camera_id = 0
-            print('Found one camera: %s' % cameras_found[0])
+    def __init__(self,zwo_asi_lib):
+        self.zwo_asi_lib=zwo_asi_lib
+        if zwo_asi_lib:
+            asi.init(zwo_asi_lib)
         else:
-            print('Found %d cameras' % num_cameras)
+            print('The filename of the SDK library is required set ZWO_ASI_LIB environment variable with the filename')
+            sys.exit(1)
+
+    def opencamera(self,cameraname=None):
+        num_cameras = asi.get_num_cameras()
+        if num_cameras == 0:
+            print('No cameras found')
+            sys.exit(0)
+
+        cameras_found = asi.list_cameras()  # Models names of the connected cameras
+
+        if cameraname is not None:
+            self.camera_id=-1
             for n in range(num_cameras):
-                print('    %d: %s' % (n, cameras_found[n]))
-                # TO DO: allow user to select a camera
-            camera_id = 0
-    print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
+                if cameraname == cameras_found[n]:
+                    self.camera_id=n
+                    break
+            if self.camera_id==-1:
+                print('Unable to find camera "%s".'%(cameraname))
+                sys.exit(1)
+        else:
+            if num_cameras == 1:
+                self.camera_id = 0
+                print('Found one camera: %s' % cameras_found[0])
+            else:
+                print('Found %d cameras' % num_cameras)
+                for n in range(num_cameras):
+                    print('    %d: %s' % (n, cameras_found[n]))
+                    # TO DO: allow user to select a camera
+                self.camera_id = 0
+        print('Using #%d: %s' % (self.camera_id, cameras_found[self.camera_id]))
 
-    camera = asi.Camera(camera_id)
-    camera_info = camera.get_camera_property()
-    controls = camera.get_controls()
-    for cn in sorted(controls.keys()):
-        #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys()))))
-        print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys())))))
-
-
-    # Use minimum USB bandwidth permitted
-    camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()['BandWidth']['MinValue'])
-
-    # Set some sensible defaults. They will need adjusting depending upon
-    # the sensitivity, lens and lighting conditions used.
-
-    camera.disable_dark_subtract()
-
-    offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(camera_id)
-
-    print("offset_highest_DR %d"%offset_highest_DR)
-    print("offset_unity_gain %d"%offset_unity_gain)
-    print("gain_lowest_RN %d"%gain_lowest_RN)
-    print("offset_lowest_RN %d"%offset_lowest_RN)
-
-    print("ElecPerADU %f"%camera_info['ElecPerADU'])
-    print("BitDepth %d"%camera_info['BitDepth'])
-
-    unitygain=10*20*math.log10(camera_info['ElecPerADU'])
-    fullwell=(2**camera_info['BitDepth'])*camera_info['ElecPerADU']
-
-    print("unitygain %f"%unitygain)
-    print("fullwell %f"%fullwell)
-
-    g=10**(gain_lowest_RN/200.0)
-
-    print("g %f"%g)
-    print("gfw %f"%(fullwell/g))
-
-    g=10**(unitygain/200.0)
-
-    print("g %f"%g)
-    print("gfw %f"%(fullwell/g))
+        self.camera = asi.Camera(self.camera_id)
+        self.camera_info = self.camera.get_camera_property()
+        self.controls = self.camera.get_controls()
 
 
-    camera.set_control_value(asi.ASI_WB_B, 95)
-    camera.set_control_value(asi.ASI_WB_R, 52)
-    camera.set_control_value(asi.ASI_GAMMA, 50)
-    camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
-    #camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
-    camera.set_control_value(asi.ASI_FLIP, 0)
 
-    #Reset Camera
-    try:
-        # Force any single exposure to be halted
-        camera.stop_video_capture()
-        camera.stop_exposure()
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except:
-        pass
+        # Use minimum USB bandwidth permitted
+        self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, self.camera.get_controls()['BandWidth']['MinValue'])
 
-    return camera,camera_info,controls
+        # Set some sensible defaults. They will need adjusting depending upon
+        # the sensitivity, lens and lighting conditions used.
 
+        self.camera.disable_dark_subtract()
+
+        offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(self.camera_id)
+
+        print("offset_highest_DR %d"%offset_highest_DR)
+        print("offset_unity_gain %d"%offset_unity_gain)
+        print("gain_lowest_RN %d"%gain_lowest_RN)
+        print("offset_lowest_RN %d"%offset_lowest_RN)
+
+        print("ElecPerADU %f"%self.camera_info['ElecPerADU'])
+        print("BitDepth %d"%self.camera_info['BitDepth'])
+
+        unitygain=10*20*math.log10(self.camera_info['ElecPerADU'])
+        fullwell=(2**self.camera_info['BitDepth'])*self.camera_info['ElecPerADU']
+
+        print("unitygain %f"%unitygain)
+        print("fullwell %f"%fullwell)
+
+        g=10**(gain_lowest_RN/200.0)
+
+        print("g %f"%g)
+        print("gfw %f"%(fullwell/g))
+
+        g=10**(unitygain/200.0)
+
+        print("g %f"%g)
+        print("gfw %f"%(fullwell/g))
+
+
+        self.camera.set_control_value(asi.ASI_WB_B, 95)
+        self.camera.set_control_value(asi.ASI_WB_R, 52)
+        self.camera.set_control_value(asi.ASI_GAMMA, 50)
+        self.camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
+        #camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
+        self.camera.set_control_value(asi.ASI_FLIP, 0)
+
+        #Reset Camera
+        try:
+            # Force any single exposure to be halted
+            self.camera.stop_video_capture()
+            self.camera.stop_exposure()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            pass
+
+
+        
+    def printcontrols(self):
+        for cn in sorted(controls.keys()):
+            #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys()))))
+            print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys())))))
+
+
+    def set_auto_max_brightness(self,n):
+        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, n)
+
+    def get_brightness(self):
+        return self.camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
+        
+    def get_max_gain(self):
+        return self.controls["Gain"]["MaxValue"]
+    def set_max_auto_gain(self,val,auto=False):
+        self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN,val,auto)
+        
+    def get_gain(self):
+        return self.camera.get_control_value(asi.ASI_GAIN)[0]
+    def set_gain(self,val,auto=False):
+        self.camera.set_control_value(asi.ASI_GAIN,val,auto)
+
+    def get_max_expsure(self):
+        return self.controls["Exposure"]["MaxValue"]
+    def set_max_auto_exposure(self,val,auto=False):
+        self.camera.set_control_value(asi.ASI_AUTO_MAX_EXP,val,auto)
+    def get_exposure(self):
+        return self.camera.get_control_value(asi.ASI_EXPOSURE)[0]
+    def set_exposure(self,val,auto=False):
+        self.camera.set_control_value(asi.ASI_EXPOSURE, val, auto)
+        
+    def get_temperature(self):
+        return float(self.camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
+    
+    def set_image_type(self,t):
+        self.camera.set_image_type(t)
+
+
+    def start_video_capture(self):
+        self.camera.start_video_capture()
+
+    def get_dropped_frames(self):
+        return self.camera.get_dropped_frames()
+
+    def capture_video_frame(self):
+        return self.camera.capture_video_frame()
+
+    def capture(self):
+        return self.camera.capture()
 ##################################################################################
 #
 # Background thread to save off an image, png or jpeg encoding can be slow!

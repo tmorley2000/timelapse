@@ -34,7 +34,8 @@ parser.add_argument('--fontsize', type=int, default=12, help='Font size for over
 
 args = parser.parse_args()
 
-camera,camera_info,controls=timelapseutils.asiinit(args.zwo_asi_lib,args.cameraname)
+camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
+camera.opencamera(args.cameraname)
 
 font=ImageFont.truetype(args.font,args.fontsize)
 
@@ -43,10 +44,10 @@ minexp=args.minexp
 maxexp=args.maxexp
 
 #Usable gain range
-mingain=float(controls["Gain"]["MaxValue"])*args.mingain/100
-maxgain=float(controls["Gain"]["MaxValue"])*args.maxgain/100
+mingain=float(camera.get_max_gain())*args.mingain/100
+maxgain=float(camera.get_max_gain())*args.maxgain/100
 
-idealgain=float(controls["Gain"]["MaxValue"])*args.idealgain/100
+idealgain=float(camera.get_max_gain())*args.idealgain/100
 
 print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
 
@@ -129,13 +130,13 @@ while True:
     
     print "Setup:   %f"%(time.time()-now)
 
-    camera.set_control_value(asi.ASI_GAIN, int(gain))
-    camera.set_control_value(asi.ASI_EXPOSURE, int(exp))
+    camera.set_gain( int(gain))
+    camera.set_exposure( int(exp))
 
     print "Capture: %f"%(time.time()-now)
     pxls=camera.capture()
 
-    cameratemp=float(camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
+    cameratemp=camera.get_temperature()
 
     print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
 

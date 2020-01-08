@@ -20,7 +20,8 @@ fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
 fontsize=12
 font=ImageFont.truetype(fontfile,fontsize)
 
-camera,camera_info,controls=timelapseutils.asiinit(env_filename)
+camera=timelapseutils.timelapsecamera(env_filename)
+camera.opencamera()
 
 #Usable Expsure range
 minexp=1.0
@@ -118,14 +119,14 @@ while True:
 
     print "Setup:   %f"%(time.time()-now)
 
-    camera.set_control_value(asi.ASI_GAIN, int(gain))
-    camera.set_control_value(asi.ASI_EXPOSURE, int(exp))
+    camera.set_gain( int(gain))
+    camera.set_exposure( int(exp))
 
     filename = filenametemplate % frameno
     print "Capture: %f"%(time.time()-now)
     pxls=camera.capture()
 
-    cameratemp=float(camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
+    cameratemp=camera.get_temperature()
 
     print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
     mode = None
