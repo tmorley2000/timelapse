@@ -68,8 +68,8 @@ if args.imagemode == "RAW16":
     outputmode='RGB'
     stacktype='uint32'
     clipmin,clipmax=(0,65535)
-    postprocess= timelapseutils.cvdebayer16to8
     postprocess= timelapseutils.debayer16to8
+    postprocess= timelapseutils.cvdebayer16to8
 elif args.imagemode == "RAW8":
     camera.set_image_type(asi.ASI_IMG_RAW8)
     outputmode='RGB'
@@ -97,6 +97,8 @@ def mode0():
     exp=camera.get_exposure()
     print "Enter Mode 0 exp %d"%(exp)
                 
+    camera.set_brightness(0,False)
+
     camera.set_max_auto_exposure( maxexp , True)
     camera.set_exposure( exp, True)
 
@@ -109,6 +111,8 @@ def mode1():
     gain=camera.get_gain()
     print "Enter Mode 1 gain %d"%(gain)
 
+    camera.set_brightness(0,False)
+
     camera.set_exposure( maxexp*1000, False)
 
     camera.set_max_auto_gain( int(maxgain) , True)
@@ -117,7 +121,7 @@ def mode1():
     global mode
     mode=1
 
-mode0()
+mode1()
 
 camera.start_video_capture()
 dropped=camera.get_dropped_frames()
@@ -176,6 +180,14 @@ while True:
                 p=a[3]
                 # save a
 		print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
+		avg=numpy.average(p)/256.0
+                print "avg %f tgt %f"%(avg,args.tgtbrightness)
+		if avg<args.tgtbrightness:
+                    fix=min(args.tgtbrightness/avg,10)
+                    p=p*fix
+                    print "Fixup %f"%(fix)
+                    print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
+
 		p=numpy.clip(p,clipmin,clipmax)
                 if postprocess is not None:
                     p=postprocess(p)

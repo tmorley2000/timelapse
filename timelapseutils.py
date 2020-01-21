@@ -57,8 +57,11 @@ class timelapsecamera:
                     # TO DO: allow user to select a camera
                 self.camera_id = 0
         print('Using #%d: %s' % (self.camera_id, cameras_found[self.camera_id]))
-
+        
         self.camera = asi.Camera(self.camera_id)
+
+        # e_per_adu depends on gain, so force it to zero before we start!
+        self.camera.set_control_value(asi.ASI_GAIN,0,False)
         self.camera_info = self.camera.get_camera_property()
         self.controls = self.camera.get_controls()
 
@@ -72,33 +75,53 @@ class timelapsecamera:
 
         self.camera.disable_dark_subtract()
 
-        offset_highest_DR,offset_unity_gain,gain_lowest_RN,offset_lowest_RN=asi._get_gain_offset(self.camera_id)
+        self.offset_highest_DR,self.offset_unity_gain,self.gain_lowest_RN,self.offset_lowest_RN=asi._get_gain_offset(self.camera_id)
 
-        print("offset_highest_DR %d"%offset_highest_DR)
-        print("offset_unity_gain %d"%offset_unity_gain)
-        print("gain_lowest_RN %d"%gain_lowest_RN)
-        print("offset_lowest_RN %d"%offset_lowest_RN)
+        print("offset_highest_DR %d"%self.offset_highest_DR)
+        print("offset_unity_gain %d"%self.offset_unity_gain)
+        print("gain_lowest_RN %d"%self.gain_lowest_RN)
+        print("offset_lowest_RN %d"%self.offset_lowest_RN)
 
         print("ElecPerADU %f"%self.camera_info['ElecPerADU'])
         print("BitDepth %d"%self.camera_info['BitDepth'])
 
+        
         unitygain=10*20*math.log10(self.camera_info['ElecPerADU'])
-        fullwell=(2**self.camera_info['BitDepth'])*self.camera_info['ElecPerADU']
+        
+        fullwell0=(2**self.camera_info['BitDepth'])*self.camera_info['ElecPerADU']
 
         print("unitygain %f"%unitygain)
-        print("fullwell %f"%fullwell)
+        print("fullwell %f"%fullwell0)
 
-        g=10**(gain_lowest_RN/200.0)
+        g=10**(self.gain_lowest_RN/200.0)
 
         print("g %f"%g)
-        print("gfw %f"%(fullwell/g))
+        print("gfw %f"%(fullwell0/g))
 
         g=10**(unitygain/200.0)
 
         print("g %f"%g)
-        print("gfw %f"%(fullwell/g))
+        print("gfw %f"%(fullwell0/g))
 
 
+        print("Max DR")
+        apigain=0
+        gain=10**(apigain/200.0)
+        fullwell=fullwell0/gain
+        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
+        
+        print("Unity Gain")
+        apigain=unitygain
+        gain=10**(apigain/200.0)
+        fullwell=fullwell0/gain
+        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
+        
+        print("Lowest RN")
+        apigain=self.gain_lowest_RN
+        gain=10**(apigain/200.0)
+        fullwell=fullwell0/gain
+        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
+        
         self.camera.set_control_value(asi.ASI_WB_B, 95)
         self.camera.set_control_value(asi.ASI_WB_R, 52)
         self.camera.set_control_value(asi.ASI_GAMMA, 50)
@@ -129,6 +152,8 @@ class timelapsecamera:
 
     def get_brightness(self):
         return self.camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
+    def set_brightness(self,val,auto=False):
+        return self.camera.set_control_value(asi.ASI_BRIGHTNESS,val,auto)
         
     def get_max_gain(self):
         return self.controls["Gain"]["MaxValue"]
