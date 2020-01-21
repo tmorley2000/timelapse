@@ -105,8 +105,8 @@ while True:
     rawexp=camera.get_exposure()
     currentexp=rawexp/1000
     currentgain=camera.get_gain()
-    currentbrightness=camera.get_brightness()
-    print "currentexp %d currentgain %d currentbrightness %d"%(rawexp,currentgain,currentbrightness)
+    currentoffset=camera.get_offset()
+    print "currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset)
     if (currentexp)>=maxexp:
         # Gain at max, stack away
         print "Stacking"

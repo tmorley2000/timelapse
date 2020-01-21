@@ -125,8 +125,7 @@ class timelapsecamera:
         self.camera.set_control_value(asi.ASI_WB_B, 95)
         self.camera.set_control_value(asi.ASI_WB_R, 52)
         self.camera.set_control_value(asi.ASI_GAMMA, 50)
-        self.camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
-        #camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, args.tgtbrightness)
+        self.camera.set_control_value(asi.ASI_OFFSET, 50)
         self.camera.set_control_value(asi.ASI_FLIP, 0)
 
         #Reset Camera
@@ -150,10 +149,10 @@ class timelapsecamera:
     def set_auto_max_brightness(self,n):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, n)
 
-    def get_brightness(self):
-        return self.camera.get_control_value(asi.ASI_BRIGHTNESS)[0]
-    def set_brightness(self,val,auto=False):
-        return self.camera.set_control_value(asi.ASI_BRIGHTNESS,val,auto)
+    def get_offset(self):
+        return self.camera.get_control_value(asi.ASI_OFFSET)[0]
+    def set_offset(self,val,auto=False):
+        return self.camera.set_control_value(asi.ASI_OFFSET,val,auto)
         
     def get_max_gain(self):
         return self.controls["Gain"]["MaxValue"]

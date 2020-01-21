@@ -97,7 +97,7 @@ def mode0():
     exp=camera.get_exposure()
     print "Enter Mode 0 exp %d"%(exp)
                 
-    camera.set_brightness(0,False)
+    camera.set_offset(0,False)
 
     camera.set_max_auto_exposure( maxexp , True)
     camera.set_exposure( exp, True)
@@ -111,7 +111,7 @@ def mode1():
     gain=camera.get_gain()
     print "Enter Mode 1 gain %d"%(gain)
 
-    camera.set_brightness(0,False)
+    camera.set_offset(0,False)
 
     camera.set_exposure( maxexp*1000, False)
 
@@ -131,9 +131,9 @@ while True:
     rawexp=camera.get_exposure()
     currentexp=rawexp/1000
     currentgain=camera.get_gain()
-    currentbrightness=camera.get_brightness()
+    currentoffset=camera.get_offset()
 
-    print "currentexp %d currentgain %d currentbrightness %d"%(rawexp,currentgain,currentbrightness)
+    print "currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset)
 
     print "got stats %f"%(time.time()-now)
     
