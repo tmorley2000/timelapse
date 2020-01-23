@@ -177,13 +177,13 @@ while True:
                 print "Saving stack of %d frames total exp %d"%(a[0],a[1])
                 print "  saving %f"%(time.time()-now)
                 stacks.remove(a)
-                p=a[3]
+                p=a[3]/a[0]
                 # save a
 		print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
 		avg=numpy.average(p)/256.0
                 print "avg %f tgt %f"%(avg,args.tgtbrightness)
 		if avg<args.tgtbrightness:
-                    fix=min(args.tgtbrightness/avg,10)
+                    fix=min(args.tgtbrightness/avg,a[0])
                     p=p*fix
                     print "Fixup %f"%(fix)
                     print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
@@ -222,9 +222,9 @@ while True:
                 if "/" in args.filename:
                     distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(a[2])))
 
-            #print "Queue Save: %f"%(time.time()-now)
-            #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
-            timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
+                #print "Queue Save: %f"%(time.time()-now)
+                #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
+                timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
 
             mode0()
 
