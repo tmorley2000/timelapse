@@ -151,8 +151,6 @@ while True:
             pxls=postprocess(pxls)
         newimage = Image.fromarray(pxls, mode=outputmode)
         filename=time.strftime(args.filename, time.gmtime(now))
-        if "/" in args.filename:
-            distutils.dir_util.mkpath(os.path.dirname(filename))
 
         timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
 
@@ -194,11 +192,7 @@ while True:
                 newimage = Image.fromarray(p, mode=outputmode)
                 filename=time.strftime(args.filename, time.gmtime(a[2]))
 
-                if "/" in args.filename:
-                    distutils.dir_util.mkpath(os.path.dirname(filename))
-
                 print "  processed %f"%(time.time()-now)
-
 
                 timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
             else:
@@ -219,8 +213,6 @@ while True:
                     pxls=postprocess(pxls)
                 newimage = Image.fromarray(pxls, mode=outputmode)
                 filename=time.strftime(args.filename, time.gmtime(a[2]))
-                if "/" in args.filename:
-                    distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(a[2])))
 
                 #print "Queue Save: %f"%(time.time()-now)
                 #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
