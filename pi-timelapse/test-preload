@@ -1,0 +1,4 @@
+
+#gcc -I/opt/vc/include -Wall -fPIC -shared -o preload.so preload.c -ldl && LD_PRELOAD=./preload.so raspividyuv -md 2 -w 3280 -h 2464 -o /dev/null -pts tst.pts -t 10000 -fps 2 --nopreview >raspividyuv-test-preload.txt
+
+gcc -I/opt/vc/include -Wall -fPIC -shared -o preload.so preload.c -ldl && LD_PRELOAD=./preload.so python3 mmal-capture.py >mmal-capture-test-preload.txt

@@ -168,7 +168,7 @@ while True:
 
     elif mode==1:
         print "Mode 1 %d stacks"%(len(stacks))
-        for a in stacks:
+        for a in stacks.copy(): 
             print "  stacksize %d"%(a[0])
             print "  stacking %f"%(time.time()-now)
             if a[0]==args.stacksize:
@@ -206,7 +206,7 @@ while True:
             nexttime+=args.interval
 
         if currentgain<=mingain:
-            for a in stacks:
+            for a in stacks.copy():
                 stacks.remove(a)
                 pxls=a[3]
                 if postprocess is not None:

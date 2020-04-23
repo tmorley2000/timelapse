@@ -110,7 +110,7 @@ while True:
     if (currentexp)>=maxexp:
         # Gain at max, stack away
         print "Stacking"
-        for a in stacks:
+        for a in stacks.copy():
             if numpy.average(a[3])>tgtbrightness or a[0]==args.stacksize:
                 print "Saving stack of %d frames total exp %d"%(a[0],a[1])
                 stacks.remove(a)
@@ -141,7 +141,7 @@ while True:
         # Save and image and pause for a bit.
         print "Not Stacking"
         # Clear out partial stacks
-        for a in stacks:
+        for a in stacks.copy():
             stacks.remove(a)
             pxls=a[3]
             if postprocess is not None:
