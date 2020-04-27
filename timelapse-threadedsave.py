@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import os
@@ -7,7 +7,7 @@ import time
 import zwoasi as asi
 import numpy
 import math
-import Queue
+import queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
@@ -49,7 +49,7 @@ maxgain=float(camera.get_max_gain())*args.maxgain/100
 
 idealgain=float(camera.get_max_gain())*args.idealgain/100
 
-print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
+print(("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain)))
 
 # Useful numbers from http://skyinspector.co.uk/zwo-cmos-digital-video-cameras
 doublegain=60
@@ -73,7 +73,7 @@ def gainexp(exp0):
          gain=maxgain
 
 	newexp0=exp*2**(gain/doublegain)
-	print "gainexp: exp0 %f gain %f exp %f"%(exp0,gain,exp)
+	print("gainexp: exp0 %f gain %f exp %f"%(exp0,gain,exp))
 	exp0=newexp0
         return (int(gain),int(exp),exp0)
 
@@ -114,39 +114,39 @@ else:
 while True:
     now=time.time()
     wait=nexttime-now
-    print "Pause: lasttime %f nexttime %f now %f wait %f"%(lasttime,nexttime,now,wait)
+    print("Pause: lasttime %f nexttime %f now %f wait %f"%(lasttime,nexttime,now,wait))
     while now<nexttime:
 	wait=max(nexttime-now,0.1)
 	time.sleep(wait)
 	lasttime=now
 	now=time.time()
-	print "Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime)
+	print("Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime))
 
     nexttime+=args.interval
 
-    print "Start:   %f"%(now)
+    print("Start:   %f"%(now))
 
     systemtemp=timelapseutils.getsystemp()
     
-    print "Setup:   %f"%(time.time()-now)
+    print("Setup:   %f"%(time.time()-now))
 
     camera.set_gain( int(gain))
     camera.set_exposure( int(exp))
 
-    print "Capture: %f"%(time.time()-now)
+    print("Capture: %f"%(time.time()-now))
     pxls=camera.capture()
 
     cameratemp=camera.get_temperature()
 
-    print "Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype))
+    print("Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype)))
 
     t0=time.time()
     if postprocess is not None:
         pxls=postprocess(pxls)
-    print "debayer %f"%(time.time()-t0)
+    print("debayer %f"%(time.time()-t0))
     newimage = Image.fromarray(pxls, mode=outputmode)
 
-    print "Text:    %f"%(time.time()-now)
+    print("Text:    %f"%(time.time()-now))
 
     text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),int(exp),int(gain)),
           "Camera Temp %.1f\260C System Temp %.1f\260C"%(cameratemp,systemtemp),]
@@ -158,7 +158,7 @@ while True:
     if "/" in args.filename:
         distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
 
-    print "Queue Save: %f"%(time.time()-now)
+    print("Queue Save: %f"%(time.time()-now))
     #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
     timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
 
@@ -171,7 +171,7 @@ while True:
 
     (gain,exp,exp0)=gainexp(exp0)
 
-    print("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain))
+    print(("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain)))
 
     frameno+=1
     
