@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import os
@@ -7,7 +7,7 @@ import time
 import zwoasi as asi
 import numpy
 import math
-import Queue
+import queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
@@ -95,7 +95,7 @@ mode=0
 
 def mode0():
     exp=camera.get_exposure()
-    print "Enter Mode 0 exp %d"%(exp)
+    print( "Enter Mode 0 exp %d"%(exp))
                 
     camera.set_offset(0,False)
 
@@ -109,7 +109,7 @@ def mode0():
 
 def mode1():
     gain=camera.get_gain()
-    print "Enter Mode 1 gain %d"%(gain)
+    print("Enter Mode 1 gain %d"%(gain))
 
     camera.set_offset(0,False)
 
@@ -133,20 +133,20 @@ while True:
     currentgain=camera.get_gain()
     currentoffset=camera.get_offset()
 
-    print "currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset)
+    print( "currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset))
 
-    print "got stats %f"%(time.time()-now)
+    print( "got stats %f"%(time.time()-now))
     
     pxls=camera.capture_video_frame()
 
-    print "got frame %f"%(time.time()-now)
+    print( "got frame %f"%(time.time()-now))
 
     dropped=camera.get_dropped_frames()
-    print "dropped %d"%(dropped)
+    print( "dropped %d"%(dropped))
     # print "Image min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
 
     if mode==0:
-        print "mode 0 frame"
+        print( "mode 0 frame")
         if postprocess is not None:
             pxls=postprocess(pxls)
         newimage = Image.fromarray(pxls, mode=outputmode)
@@ -167,40 +167,40 @@ while True:
 
 
     elif mode==1:
-        print "Mode 1 %d stacks"%(len(stacks))
+        print( "Mode 1 %d stacks"%(len(stacks)))
         for a in stacks.copy(): 
-            print "  stacksize %d"%(a[0])
-            print "  stacking %f"%(time.time()-now)
+            print( "  stacksize %d"%(a[0]))
+            print( "  stacking %f"%(time.time()-now))
             if a[0]==args.stacksize:
-                print "Saving stack of %d frames total exp %d"%(a[0],a[1])
-                print "  saving %f"%(time.time()-now)
+                print( "Saving stack of %d frames total exp %d"%(a[0],a[1]))
+                print( "  saving %f"%(time.time()-now))
                 stacks.remove(a)
                 p=a[3]/a[0]
                 # save a
-		print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
-		avg=numpy.average(p)/256.0
-                print "avg %f tgt %f"%(avg,args.tgtbrightness)
-		if avg<args.tgtbrightness:
+                print( "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p)))
+                avg=numpy.average(p)/256.0
+                print( "avg %f tgt %f"%(avg,args.tgtbrightness))
+                if avg<args.tgtbrightness:
                     fix=min(args.tgtbrightness/avg,a[0])
                     p=p*fix
-                    print "Fixup %f"%(fix)
-                    print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
+                    print( "Fixup %f"%(fix))
+                    print( "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p)))
 
-		p=numpy.clip(p,clipmin,clipmax)
+                p=numpy.clip(p,clipmin,clipmax)
                 if postprocess is not None:
                     p=postprocess(p)
                 newimage = Image.fromarray(p, mode=outputmode)
                 filename=time.strftime(args.filename, time.gmtime(a[2]))
 
-                print "  processed %f"%(time.time()-now)
+                print( "  processed %f"%(time.time()-now))
 
                 timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
             else:
-                print "about to stack %f"%(time.time()-now)
+                print( "about to stack %f"%(time.time()-now))
                 a[0]=a[0]+1
                 a[1]=a[1]+currentexp
                 a[3]=a[3]+pxls
-                print "stacked %f"%(time.time()-now)
+                print( "stacked %f"%(time.time()-now))
         if now>=nexttime:
             stacks.append([1,currentexp,now, pxls.astype(stacktype)])
             nexttime+=args.interval

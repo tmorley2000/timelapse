@@ -7,7 +7,7 @@ import sys
 import zwoasi as asi
 import numpy
 import math
-import Queue
+import queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
@@ -203,13 +203,13 @@ def saveimage(image,dirname,filename,symlinkname):
     os.symlink(filename,os.path.join(dirname,symlinkname+".new"))
     os.rename(os.path.join(dirname,symlinkname+".new"),os.path.join(dirname,symlinkname))
     
-saverqueue=Queue.Queue()
+saverqueue=queue.Queue()
 
 def saverworker():
     while True:
-	(image,dirname,filename,symlinkname)=saverqueue.get()
-	saveimage(image,dirname,filename,symlinkname)
-	saverqueue.task_done()
+        (image,dirname,filename,symlinkname)=saverqueue.get()
+        saveimage(image,dirname,filename,symlinkname)
+        saverqueue.task_done()
         
 saverworkerthread=threading.Thread(target=saverworker)
 saverworkerthread.setDaemon(True)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import os
@@ -7,7 +7,7 @@ import time
 import zwoasi as asi
 import numpy
 import math
-import Queue
+import queue
 import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
@@ -53,7 +53,7 @@ maxgain=float(camera.get_max_gain())*args.maxgain/100
 
 idealgain=float(camera.get_max_gain())*args.idealgain/100
 
-print("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain))
+print(("Gain: Min %f Max %f Ideal %f"%(mingain,maxgain,idealgain)))
 
 lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
@@ -101,22 +101,22 @@ stacks=[]
 while True:
     now=time.time()
     pxls=camera.capture_video_frame()
-    print "Frame min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls))
+    print("Frame min: %d avg: %d max: %d"%(numpy.min(pxls),numpy.average(pxls),numpy.max(pxls)))
     rawexp=camera.get_exposure()
     currentexp=rawexp/1000
     currentgain=camera.get_gain()
     currentoffset=camera.get_offset()
-    print "currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset)
+    print("currentexp %d currentgain %d currentoffset %d"%(rawexp,currentgain,currentoffset))
     if (currentexp)>=maxexp:
         # Gain at max, stack away
-        print "Stacking"
+        print("Stacking")
         for a in stacks.copy():
             if numpy.average(a[3])>tgtbrightness or a[0]==args.stacksize:
-                print "Saving stack of %d frames total exp %d"%(a[0],a[1])
+                print("Saving stack of %d frames total exp %d"%(a[0],a[1]))
                 stacks.remove(a)
                 p=a[3]
                 # save a
-		print "Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p))
+		print("Stack min: %d avg: %d max: %d"%(numpy.min(p),numpy.average(p),numpy.max(p)))
 		p=numpy.clip(p,clipmin,clipmax)
                 if postprocess is not None:
                     p=postprocess(p)
@@ -139,7 +139,7 @@ while True:
             nexttime+=args.interval
     else:
         # Save and image and pause for a bit.
-        print "Not Stacking"
+        print("Not Stacking")
         # Clear out partial stacks
         for a in stacks.copy():
             stacks.remove(a)
