@@ -230,11 +230,18 @@ def cvdebayer(pxls):
 
 
 def debayer16to8(pxls):
-    r=pxls[::2,::2]
-    g1=pxls[1::2,::2].astype("uint32")
-    g2=pxls[::2,1::2].astype("uint32")
-    g=((g1+g2)/2).astype("uint16")
-    b=pxls[1::2,1::2]
+    r=(pxls[::2,::2]>>8).astype("uint8")
+# Type conversion if camer is true 16bit, for cameras with 15 or less bits, its not necessary
+#    g1=pxls[1::2,::2].astype("uint32")
+#    g2=pxls[::2,1::2].astype("uint32")
+#    g=((g1+g2)/2).astype("uint16")
+
+#    g1=pxls[1::2,::2]
+#    g2=pxls[::2,1::2]
+#    g=(g1+g2)>>1
+
+    g=((pxls[1::2,::2]+pxls[::2,1::2])>>9).astype("uint8")
+    b=(pxls[1::2,1::2]>>8).astype("uint8")
 
 #    r=r-numpy.min(r)
 #    g=g-numpy.min(g)
@@ -244,7 +251,9 @@ def debayer16to8(pxls):
 #    g=(((g.astype(float)/65536)**0.52)*65536)
 #    b=(((b.astype(float)/65536)**0.52)*65536)
 
-    return (numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
+    #return (numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
+    #return (numpy.stack((r,g,b),axis=-1)>>8).astype("uint8")
+    return numpy.stack((r,g,b),axis=-1)
 
 
 def debayer8(pxls):
