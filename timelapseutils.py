@@ -236,9 +236,9 @@ def debayer16to8(pxls):
     g=((g1+g2)/2).astype("uint16")
     b=pxls[1::2,1::2]
 
-    r=r-numpy.min(r)
-    g=g-numpy.min(g)
-    b=b-numpy.min(b)
+#    r=r-numpy.min(r)
+#    g=g-numpy.min(g)
+#    b=b-numpy.min(b)
 
 #    r=(((r.astype(float)/65536)**0.52)*65536)
 #    g=(((g.astype(float)/65536)**0.52)*65536)
