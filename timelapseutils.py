@@ -240,7 +240,7 @@ def debayer16to8(pxls):
 #    g2=pxls[::2,1::2]
 #    g=(g1+g2)>>1
 
-    g=((pxls[1::2,::2]+pxls[::2,1::2])>>9).astype("uint8")
+    g=((pxls[1::2,::2]>>1+pxls[::2,1::2]>>1)>>8).astype("uint8")
     b=(pxls[1::2,1::2]>>8).astype("uint8")
 
 #    r=r-numpy.min(r)
