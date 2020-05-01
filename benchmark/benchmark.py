@@ -98,7 +98,6 @@ timestamp("pibayer reshape and crop")
 
 msbs = numpy.delete(rd, numpy.s_[4::5], 1)
 print(msbs[0:6,0:6])
-
 timestamp("pibayer simple strip to uint8")
 
 rawimg = rd.astype(numpy.uint16) << 2
@@ -106,7 +105,6 @@ for byte in range(4):
     rawimg[:, byte::5] |= ((rawimg[:, 4::5] >> ((4 - byte) * 2)) & 0b11)
 rawimg = numpy.delete(rawimg, numpy.s_[4::5], 1)
 print(rawimg[0:6,0:6])
-
 timestamp("pibayer simple unpack to uint16")
 
 cells = numpy.empty((rd.shape[0],round(rd.shape[1]/5*4)),dtype=numpy.uint16)
@@ -119,28 +117,28 @@ for byte in range(4):
 print(cells[0:6,0:6])
 timestamp("pibayer faster unpack to uint16")
 
-# From https://android.googlesource.com/platform/cts/+/master/apps/CameraITS/pymodules/its/image.py
-
-img=rd
-w = int(img.shape[1]*4/5)
-h = img.shape[0]
-# Cut out the 4x8b MSBs and shift to bits [9:2] in 16b words.
-msbs = numpy.delete(img, numpy.s_[4::5], 1)
-msbs = msbs.astype(numpy.uint16)
-msbs = numpy.left_shift(msbs, 2)
-msbs = msbs.reshape(h,w)
-# Cut out the 4x2b LSBs and put each in bits [1:0] of their own 8b words.
-lsbs = img[::, 4::5].reshape(h,w>>2)
-lsbs = numpy.right_shift(
-       numpy.packbits(numpy.unpackbits(lsbs).reshape(h,w>>2,4,2),3), 6)
-# Pair the LSB bits group to 0th pixel instead of 3rd pixel
-lsbs = lsbs.reshape(h,w>>2,4)[:,:,::-1]
-lsbs = lsbs.reshape(h,w)
-# Fuse the MSBs and LSBs back together
-img16 = numpy.bitwise_or(msbs, lsbs).reshape(h,w)
-
-print(img16[0:6,0:6])
-timestamp("pibayer slower! unpack to uint16")
+## From https://android.googlesource.com/platform/cts/+/master/apps/CameraITS/pymodules/its/image.py
+#
+#img=rd
+#w = int(img.shape[1]*4/5)
+#h = img.shape[0]
+## Cut out the 4x8b MSBs and shift to bits [9:2] in 16b words.
+#msbs = numpy.delete(img, numpy.s_[4::5], 1)
+#msbs = msbs.astype(numpy.uint16)
+#msbs = numpy.left_shift(msbs, 2)
+#msbs = msbs.reshape(h,w)
+## Cut out the 4x2b LSBs and put each in bits [1:0] of their own 8b words.
+#lsbs = img[::, 4::5].reshape(h,w>>2)
+#lsbs = numpy.right_shift(
+#       numpy.packbits(numpy.unpackbits(lsbs).reshape(h,w>>2,4,2),3), 6)
+## Pair the LSB bits group to 0th pixel instead of 3rd pixel
+#lsbs = lsbs.reshape(h,w>>2,4)[:,:,::-1]
+#lsbs = lsbs.reshape(h,w)
+## Fuse the MSBs and LSBs back together
+#img16 = numpy.bitwise_or(msbs, lsbs).reshape(h,w)
+#
+#print(img16[0:6,0:6])
+#timestamp("pibayer slower! unpack to uint16")
 
 import fastunpack
 
@@ -148,30 +146,23 @@ timestamp("pibayer import fastunpack")
 
 outdata = numpy.zeros(shape=(3280*2464), dtype=numpy.uint16)
 fastunpack.fastunpacker(pibayer,outdata,4128,820,2464)
-outdata=outdata.reshape([3280,2464])
+outdata=outdata.reshape([2464, 3280])
 print(outdata[0:6,0:6])
 timestamp("pibayer fastunpack")
 
-outdata = numpy.zeros(shape=(3280*2464), dtype=numpy.uint16)
-indata=rd.reshape((2464*4100,))
-
-timestamp("pibayer fastnumpy reshape")
-
-outview=outdata.view(dtype=numpy.uint64)
-timestamp("pibayer fastnumpy view")
-
-print(outview.shape,indata.shape,indata[0::5].shape)
-
-#outview|=indata[0::5]<<2
-#outview|=indata[1::5]<<18
-#outview|=indata[2::5]<<34
-#outview|=indata[3::5]<<50
-#outview|=(indata[0::5]<<2) |(indata[1::5]<<18) |(indata[2::5]<<34) |(indata[3::5]<<50)
-#outview|=(0x4*indata[0::5]) | (0x40000*indata[1::5]) | (0x400000000*indata[2::5]) | (0x4000000000000*indata[3::5])
-outview=numpy.left_shift(indata[0::5],2,dtype=numpy.uint64)|numpy.left_shift(indata[1::5],18,dtype=numpy.uint64)|numpy.left_shift(indata[2::5],34,dtype=numpy.uint64)|numpy.left_shift(indata[3::5],50,dtype=numpy.uint64)
-outview|=(numpy.multiply(indata[4::5],0x0040001000040001,dtype=numpy.uint64)>>6)&0x0003000300030003
-
-outdata=outview.view(dtype=numpy.uint16)
-print(outdata[0:6])
-timestamp("pibayer fast numpy")
+#outdata = numpy.zeros(shape=(3280*2464), dtype=numpy.uint16)
+#indata=rd.reshape((2464*4100,))
+#outview=outdata.view(dtype=numpy.uint64)
+##outview|=indata[0::5]<<2
+##outview|=indata[1::5]<<18
+##outview|=indata[2::5]<<34
+##outview|=indata[3::5]<<50
+##outview|=(indata[0::5]<<2) |(indata[1::5]<<18) |(indata[2::5]<<34) |(indata[3::5]<<50)
+##outview|=(0x4*indata[0::5]) | (0x40000*indata[1::5]) | (0x400000000*indata[2::5]) | (0x4000000000000*indata[3::5])
+#outview=numpy.left_shift(indata[0::5],2,dtype=numpy.uint64)|numpy.left_shift(indata[1::5],18,dtype=numpy.uint64)|numpy.left_shift(indata[2::5],34,dtype=numpy.uint64)|numpy.left_shift(indata[3::5],50,dtype=numpy.uint64)
+#outview|=(numpy.multiply(indata[4::5],0x0040001000040001,dtype=numpy.uint64)>>6)&0x0003000300030003
+#
+#outdata=outview.view(dtype=numpy.uint16)
+#print(outdata[0:6])
+#timestamp("pibayer fast numpy")
 
