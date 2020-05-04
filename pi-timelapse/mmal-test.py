@@ -35,4 +35,15 @@ for o in range(len(encoder.outputs)):
  for a in encoder.outputs[o].supported_formats :
   print( " ",hex(a), mmal.FOURCC_str(a))
 
+print("Camera Info")
+mc=mo.MMALCameraInfo()
+params=mc.control.params[mmal.MMAL_PARAMETER_CAMERA_INFO]
+print("Camera Count",len(params.cameras))
+for a in params.cameras:
+ if a.max_width>0 and a.max_height>0:
+  print(" Camera",a.camera_name)
+  print(" width",a.max_width)
+  print(" height",a.max_height)
+  print(" port",a.port_id)
+
 

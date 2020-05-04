@@ -12,6 +12,16 @@ import queue
 import threading
 import distutils.dir_util
 
+camerainfo=mo.MMALCameraInfo()
+camerainfoparams=camerainfo.control.params[mmal.MMAL_PARAMETER_CAMERA_INFO]
+camerainfoparamscamera=camerainfoparams.cameras[0]
+print("Camera is ",camerainfoparamscamera.camera_name)
+
+(w,h)=(camerainfoparamscamera.max_width,camerainfoparamscamera.max_height)
+wsize,hsize=0,0
+
+camera = mo.MMALCamera()
+
 def saveimage(image,dirname,filename,symlinkname):
     if "/" in filename:
         distutils.dir_util.mkpath(os.path.dirname(os.path.join(dirname,filename)))
@@ -37,7 +47,7 @@ t=None
 stack=None
 stackcount=0
 def image_callback(port, buf):
-    global t,stack,stackcount
+    global t,stack,stackcount,w,h,wsize,hsize
     newt=time.time()
     if t is not None:
         print("interval: %f"%(newt-t))
@@ -50,9 +60,9 @@ def image_callback(port, buf):
     else:
         stack+=numpy.frombuffer(buf.data,numpy.dtype('uint8')).astype('uint32')
         stackcount+=1
-        if stackcount>=30:
+        if stackcount>=10:
             stack=numpy.clip(stack,0,255)
-            stack=stack.reshape([2464,3296,3])
+            stack=stack.reshape([hsize,wsize,3])
             i=Image.fromarray(stack.astype('uint8'),mode="RGB")
 
             filename=time.strftime("%Y/%m/%d/%Y%m%dT%H%M%S.jpg", time.gmtime(time.time()))
@@ -80,9 +90,6 @@ def image_callback(port, buf):
 
 
 
-camerainfo=mo.MMALCameraInfo()
-camera = mo.MMALCamera()
-
 
 preview_port=camera.outputs[0]
 video_port=camera.outputs[1]
@@ -91,16 +98,19 @@ still_port=camera.outputs[2]
 camera.control.params[mmal.MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG]=2
 
 video_port.format = mmal.MMAL_ENCODING_RGB24
-video_port.framesize = (3280,2464)
+video_port.framesize = (w,h)
 video_port.commit()
+print("video port internal res",video_port._port[0].format[0].es[0].video.width,video_port._port[0].format[0].es[0].video.height)
+wsize=video_port._port[0].format[0].es[0].video.width
+hsize=video_port._port[0].format[0].es[0].video.height
 
 sc=camera.control.params[mmal.MMAL_PARAMETER_CAMERA_CONFIG]
-sc.max_stills_w=3280
-sc.max_stills_h=2464
+sc.max_stills_w=w
+sc.max_stills_h=h
 sc.stills_yuv422=0
 sc.one_shot_stills=0
-sc.max_preview_video_w=3280
-sc.max_preview_video_h=2464
+sc.max_preview_video_w=w
+sc.max_preview_video_h=h
 sc.num_preview_video_frames=3
 sc.stills_capture_circular_buffer_height=0
 sc.fast_preview_resume=0
@@ -123,7 +133,7 @@ video_port.params[mmal.MMAL_PARAMETER_FPS_RANGE]=fps
 em=camera.control.params[mmal.MMAL_PARAMETER_EXPOSURE_MODE]
 em.value=mmal.MMAL_PARAM_EXPOSUREMODE_NIGHT
 camera.control.params[mmal.MMAL_PARAMETER_EXPOSURE_MODE]=em
-video_port.params[mmal.MMAL_PARAMETER_MIRROR]=mmal.MMAL_PARAM_MIRROR_BOTH
+#video_port.params[mmal.MMAL_PARAMETER_MIRROR]=mmal.MMAL_PARAM_MIRROR_BOTH
 camera.control.params[mmal.MMAL_PARAMETER_EXPOSURE_COMP] = 18
 video_port.enable(image_callback)
 
