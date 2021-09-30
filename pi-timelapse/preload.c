@@ -11,6 +11,32 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
+struct namelist_t { char *name; void *thing; struct namelist_t *next; };
+
+struct namelist_t *namelist=NULL;
+
+void addname(char * name, void *thing)
+{
+ struct namelist_t *newname=malloc(sizeof(struct namelist_t));
+ newname->name=malloc(strlen(name)+1);
+ strcpy(newname->name,name);
+ newname->thing=thing;
+ newname->next=namelist;
+ namelist=newname;
+}
+
+char *getname(void *thing)
+{
+ struct namelist_t *p=namelist;
+ while (p!=NULL)
+ {
+  if(thing==p->thing)
+   return p->name;
+  p=p->next;
+ }
+ return NULL;
+}
+
 char *idtos(int id)
 {
  char *p;
@@ -236,6 +262,7 @@ void decode_param_pack(const MMAL_PARAMETER_HEADER_T *param)
 MMAL_STATUS_T mmal_component_create(const char *name,MMAL_COMPONENT_T **component)
 {
  int a;
+ char *p;
  MMAL_STATUS_T (*orig)(const char *name,MMAL_COMPONENT_T **component);
  orig=dlsym(RTLD_NEXT, "mmal_component_create");
  MMAL_STATUS_T rc=(*orig)(name,component);
@@ -255,9 +282,24 @@ MMAL_STATUS_T mmal_component_create(const char *name,MMAL_COMPONENT_T **componen
  for (a=0;a<(*component)->clock_num;a++)
   printf("+           clock[%d]=%p\n",a,(*component)->clock[a]);
  printf("+           port_num=%d\n",(*component)->port_num);
- for (a=0;a<(*component)->clock_num;a++)
+ for (a=0;a<(*component)->port_num;a++)
   printf("+           port[%d]=%p\n",a,(*component)->port[a]);
  printf("+           id=%d\n",(*component)->id);
+
+ p=malloc(1000);
+ sprintf(p,"%s@%p-control",(*component)->name,*component);
+ addname(p,(*component)->control);
+ for (a=0;a<(*component)->input_num;a++)
+ {
+  sprintf(p,"%s@%p-input%d",(*component)->name,*component,a); 
+  addname(p,(*component)->input[a]);
+ }
+ for (a=0;a<(*component)->output_num;a++)
+ {
+  sprintf(p,"%s@%p-output%d",(*component)->name,*component,a); 
+  addname(p,(*component)->output[a]);
+ }
+
  return rc;
 }
 
@@ -266,7 +308,8 @@ MMAL_STATUS_T mmal_port_parameter_set_int32(MMAL_PORT_T *port, uint32_t id, int3
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,uint32_t id, int32_t value);
  orig=dlsym(RTLD_NEXT, "mmal_port_parameter_set_int32");
  MMAL_STATUS_T rc=(*orig)(port,id,value);
- printf("++++++++ mmal_port_parameter_set_int32(%p,%x,%d) = %d\n",port,id,value,rc);
+ /*printf("++++++++ mmal_port_parameter_set_int32(%p,%x,%d) = %d\n",port,id,value,rc);*/
+ printf("++++++++ mmal_port_parameter_set_int32(%s,%x,%d) = %d\n",getname(port),id,value,rc);
  decode_param(id);
  return rc;
 }
@@ -276,7 +319,8 @@ MMAL_STATUS_T mmal_port_parameter_set_uint32(MMAL_PORT_T *port, uint32_t id, uin
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,uint32_t id, uint32_t value);
  orig=dlsym(RTLD_NEXT, "mmal_port_parameter_set_uint32");
  MMAL_STATUS_T rc=(*orig)(port,id,value);
- printf("++++++++ mmal_port_parameter_set_uint32(%p,%x,%d) = %d\n",port,id,value,rc);
+ /*printf("++++++++ mmal_port_parameter_set_uint32(%p,%x,%d) = %d\n",port,id,value,rc);*/
+ printf("++++++++ mmal_port_parameter_set_uint32(%s,%x,%d) = %d\n",getname(port),id,value,rc);
  decode_param(id);
  return rc;
 }
@@ -286,7 +330,8 @@ MMAL_STATUS_T mmal_port_enable(MMAL_PORT_T *port, MMAL_PORT_BH_CB_T cb)
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,MMAL_PORT_BH_CB_T cb);
  orig=dlsym(RTLD_NEXT, "mmal_port_enable");
  MMAL_STATUS_T rc=(*orig)(port,cb);
- printf("++++++++ mmal_port_enable(%p,%p) = %d\n",port,cb,rc);
+ /*printf("++++++++ mmal_port_enable(%p,%p) = %d\n",port,cb,rc);*/
+ printf("++++++++ mmal_port_enable(%s,%p) = %d\n",getname(port),cb,rc);
  return rc;
 }
 
@@ -295,7 +340,8 @@ MMAL_STATUS_T mmal_port_format_commit(MMAL_PORT_T *port)
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port);
  orig=dlsym(RTLD_NEXT, "mmal_port_format_commit");
  MMAL_STATUS_T rc=(*orig)(port);
- printf("++++++++ mmal_port_format_commit(%p) = %d\n",port,rc);
+ /*printf("++++++++ mmal_port_format_commit(%p) = %d\n",port,rc);*/
+ printf("++++++++ mmal_port_format_commit(%s) = %d\n",getname(port),rc);
  return rc;
 }
 
@@ -313,7 +359,8 @@ MMAL_STATUS_T mmal_port_disable(MMAL_PORT_T *port)
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port);
  orig=dlsym(RTLD_NEXT, "mmal_port_disable");
  MMAL_STATUS_T rc=(*orig)(port);
- printf("++++++++ mmal_port_disable(%p) = %d\n",port,rc);
+ /*printf("++++++++ mmal_port_disable(%p) = %d\n",port,rc);*/
+ printf("++++++++ mmal_port_disable(%s) = %d\n",getname(port),rc);
  return rc;
 }
 
@@ -322,7 +369,8 @@ MMAL_STATUS_T mmal_port_parameter_set_boolean(MMAL_PORT_T *port, uint32_t id, MM
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,uint32_t id, MMAL_BOOL_T value);
  orig=dlsym(RTLD_NEXT, "mmal_port_parameter_set_boolean");
  MMAL_STATUS_T rc=(*orig)(port,id,value);
- printf("++++++++ mmal_port_parameter_set_boolean(%p,%x,%d) = %d\n",port,id,value,rc);
+ /*printf("++++++++ mmal_port_parameter_set_boolean(%p,%x,%d) = %d\n",port,id,value,rc);*/
+ printf("++++++++ mmal_port_parameter_set_boolean(%s,%x,%d) = %d\n",getname(port),id,value,rc);
  decode_param(id);
  return rc;
 }
@@ -332,7 +380,7 @@ MMAL_STATUS_T mmal_port_send_buffer(MMAL_PORT_T *port,MMAL_BUFFER_HEADER_T *buff
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,MMAL_BUFFER_HEADER_T *buffer);
  orig=dlsym(RTLD_NEXT, "mmal_port_send_buffer");
  MMAL_STATUS_T rc=(*orig)(port,buffer);
- printf("++++++++ mmal_port_send_buffer(%p,%p) = %d\n",port,buffer,rc);
+ printf("++++++++ mmal_port_send_buffer(%s,%p) = %d\n",getname(port),buffer,rc);
  return rc;
 }
 
@@ -350,7 +398,8 @@ MMAL_STATUS_T mmal_port_parameter_set_rational(MMAL_PORT_T *port, uint32_t id, M
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,uint32_t id, MMAL_RATIONAL_T value);
  orig=dlsym(RTLD_NEXT, "mmal_port_parameter_set_rational");
  MMAL_STATUS_T rc=(*orig)(port,id,value);
- printf("++++++++ mmal_port_parameter_set_rational(%p,%x,%d/%d) = %d\n",port,id,value.num,value.den,rc);
+ /*printf("++++++++ mmal_port_parameter_set_rational(%p,%x,%d/%d) = %d\n",port,id,value.num,value.den,rc);*/
+ printf("++++++++ mmal_port_parameter_set_rational(%s,%x,%d/%d) = %d\n",getname(port),id,value.num,value.den,rc);
  decode_param(id);
  return rc;
 }
@@ -360,7 +409,8 @@ MMAL_POOL_T *mmal_port_pool_create(MMAL_PORT_T *port,unsigned int headers, uint3
  MMAL_POOL_T * (*orig)(MMAL_PORT_T *port,unsigned int headers, uint32_t payload_size);
  orig=dlsym(RTLD_NEXT, "mmal_port_pool_create");
  MMAL_POOL_T * rc=(*orig)(port,headers,payload_size);
- printf("++++++++ mmal_port_pool_create(%p,%d,%d) = %p\n",port,headers,payload_size,rc);
+ /*printf("++++++++ mmal_port_pool_create(%p,%d,%d) = %p\n",port,headers,payload_size,rc);*/
+ printf("++++++++ mmal_port_pool_create(%s,%d,%d) = %p\n",getname(port),headers,payload_size,rc);
  return rc;
 }
 
@@ -369,7 +419,8 @@ void mmal_port_pool_destroy(MMAL_PORT_T *port, MMAL_POOL_T *pool)
  void (*orig)(MMAL_PORT_T *port,MMAL_POOL_T *pool);
  orig=dlsym(RTLD_NEXT, "mmal_port_pool_destroy");
  (*orig)(port,pool);
- printf("++++++++ mmal_port_pool_destroy(%p,%p)\n",port,pool);
+ /*printf("++++++++ mmal_port_pool_destroy(%p,%p)\n",port,pool);*/
+ printf("++++++++ mmal_port_pool_destroy(%s,%p)\n",getname(port),pool);
 }
 
 MMAL_STATUS_T mmal_component_destroy(MMAL_COMPONENT_T *component)
@@ -395,7 +446,8 @@ MMAL_STATUS_T mmal_port_parameter_set(MMAL_PORT_T *port,   const MMAL_PARAMETER_
  MMAL_STATUS_T (*orig)(MMAL_PORT_T *port,const MMAL_PARAMETER_HEADER_T *param);
  orig=dlsym(RTLD_NEXT, "mmal_port_parameter_set");
  MMAL_STATUS_T rc=(*orig)(port,param);
- printf("++++++++ mmal_port_parameter_set(%p,(%x,%d)) = %d\n",port,param->id,param->size,rc);
+ /*printf("++++++++ mmal_port_parameter_set(%p,(%x,%d)) = %d\n",port,param->id,param->size,rc);*/
+ printf("++++++++ mmal_port_parameter_set(%s,(%x,%d)) = %d\n",getname(port),param->id,param->size,rc);
  decode_param(param->id);
  decode_param_pack(param);
  return rc;
