@@ -164,7 +164,7 @@ while True:
 
     #avg=numpy.average(pxls)
     # Center weight!
-    avg=numpy.average(pxls[(pxls.shape[0]/3):(2*pxls.shape[0]/3),(pxls.shape[1]/3):(2*pxls.shape[1]/3),...])
+    avg=numpy.average(pxls[(int(pxls.shape[0]/3)):(2*int(pxls.shape[0]/3)),(int(pxls.shape[1]/3)):(2*int(pxls.shape[1]/3)),...])
     exp0=(exp0*tgtavg/avg+3*exp0)/4
 
     exp0=max(1.0,exp0)
