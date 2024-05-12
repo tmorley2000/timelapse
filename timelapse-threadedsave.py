@@ -72,9 +72,9 @@ def gainexp(exp0):
         elif gain>maxgain:
          gain=maxgain
 
-	newexp0=exp*2**(gain/doublegain)
-	print("gainexp: exp0 %f gain %f exp %f"%(exp0,gain,exp))
-	exp0=newexp0
+        newexp0=exp*2**(gain/doublegain)
+        print("gainexp: exp0 %f gain %f exp %f"%(exp0,gain,exp))
+        exp0=newexp0
         return (int(gain),int(exp),exp0)
 
 # Initial values
@@ -116,11 +116,11 @@ while True:
     wait=nexttime-now
     print("Pause: lasttime %f nexttime %f now %f wait %f"%(lasttime,nexttime,now,wait))
     while now<nexttime:
-	wait=max(nexttime-now,0.1)
-	time.sleep(wait)
-	lasttime=now
-	now=time.time()
-	print("Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime))
+        wait=max(nexttime-now,0.1)
+        time.sleep(wait)
+        lasttime=now
+        now=time.time()
+        print("Sleep:   start %f wait %f late %f"%(lasttime,wait,now-nexttime))
 
     nexttime+=args.interval
 
