@@ -45,7 +45,12 @@ else:
     print('Using #%d: %s' % (camera_id, cameras_found[camera_id]))
 
 camera = asi.Camera(camera_id)
-camera_info = camera.get_camera_property()
+camera_property = camera.get_camera_property()
+print('Camera Properties:')
+for k in sorted(camera_property.keys()):
+    print('    %s: %s' % (k,camera_property[k]))
+
+print ("Camera Supported Modes: %s"%(camera.get_camera_support_mode()))
 
 # Get all of the camera controls
 print('')

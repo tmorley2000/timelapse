@@ -1,4 +1,23 @@
 Found one camera: ZWO ASI294MC
+Camera Properties:
+    BayerPattern: 0
+    BitDepth: 14
+    CameraID: 0
+    ElecPerADU: 0.5969980359077454
+    IsColorCam: True
+    IsCoolerCam: False
+    IsTriggerCam: 0
+    IsUSB3Camera: True
+    IsUSB3Host: False
+    MaxHeight: 2822
+    MaxWidth: 4144
+    MechanicalShutter: False
+    Name: ZWO ASI294MC
+    PixelSize: 4.63
+    ST4Port: 1
+    SupportedBins: [1, 2, 3, 4]
+    SupportedVideoFormat: [0, 1, 3, 2]
+Camera Supported Modes: {'SupportedCameraMode': [0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
 
 Camera controls:
     AutoExpMaxExpMS:
@@ -22,7 +41,7 @@ Camera controls:
     AutoExpTargetBrightness:
         ControlType: 12
         DefaultValue: 100
-        Description: 'Auto exposure maximum brightness value'
+        Description: 'Auto exposure target brightness value'
         IsAutoSupported: False
         IsWritable: True
         MaxValue: 160
