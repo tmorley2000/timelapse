@@ -23,66 +23,75 @@ sys.path.append("..")
 timestamp("Import sys")
 import timelapseutils
 timestamp("Import timelapseutils")
+import simplejpeg
+timestamp("Import simplejpeg")
 
 testres=(4144,2822)
 
 z=numpy.zeros(testres,numpy.uint16)
 z2=numpy.zeros(testres,numpy.uint16)
-timestamp("Zeros")
+timestamp("Alocate 2 zero numpy arrays")
 
 r=numpy.random.random(testres)
 r2=numpy.random.random(testres)
 
-timestamp("Random")
+timestamp("Allocate 2 random numpy float arrays")
 
 r=(65535*r).astype(numpy.uint16)
 r2=(65536*r2).astype(numpy.uint16)
-timestamp("Random2uint16")
+timestamp("Convert random arrays to uint16")
 
 t=z+z2
-timestamp("Add zeros")
+timestamp("Sum zero arrays")
 
 t=r+r2
-timestamp("Add random")
+timestamp("Sum random arrays")
 
-t=(r.astype(numpy.uint32)+r2.astype(numpy.uint32)).astype(numpy.uint16)
-timestamp("random, convert to 32, add convert to 16")
+#https://stackoverflow.com/questions/25485886/how-to-convert-a-16-bit-to-an-8-bit-image-in-opencv
+
+t=numpy.clip(r.astype(numpy.uint32)+r2.astype(numpy.uint32),0,65536).astype(numpy.uint16)
+timestamp("Clipped sum in numpy (Convert to uint32, sum, clip, convert to uint16)")
+
+t=cv2.add(r,r2)
+timestamp("Clipped sum in opencv")
 
 db=timelapseutils.debayer16to8(t)
-timestamp("Simple debayer")
+timestamp("timelapseutils.debayer16to8 result dimensions "+str(db.shape))
 
 i=Image.fromarray(db, mode="RGB")
-timestamp("Simple debayer to PIL image")
+timestamp("  then convert to PIL image")
 
 i.save("/tmp/test.jpg")
-timestamp("Simple debayer to PIL image save jpg")
+timestamp("    then save jpg")
 
 i.save("/tmp/test.png")
-timestamp("Simple debayer to PIL image save png")
+timestamp("    then savesave png")
 
 cv2.imwrite("/tmp/test.jpg",db)
-timestamp("opencv debayer to opencv save jpg")
+timestamp("  then opencv save jpg")
 
 cv2.imwrite("/tmp/test.png",db)
-timestamp("opencv debayer to opencv save png")
+timestamp("  then opencv save png")
 
 db=timelapseutils.cvdebayer16to8(t)
-timestamp("opencv debayer")
+timestamp("timelapseutils.cvdebayer16to8 result dimensions "+str(db.shape))
 
 i=Image.fromarray(db, mode="RGB")
-timestamp("opencv debayer to PIL image")
+timestamp("  then convert to PIL image")
 
 i.save("/tmp/test.jpg")
-timestamp("opencv debayer to PIL image save jpg")
+timestamp("    then save jpg")
 
 i.save("/tmp/test.png")
-timestamp("opencv debayer to PIL image save png")
+timestamp("    then savesave png")
 
 cv2.imwrite("/tmp/test.jpg",db)
-timestamp("opencv debayer to opencv save jpg")
+timestamp("  then opencv save jpg")
 
 cv2.imwrite("/tmp/test.png",db)
-timestamp("opencv debayer to opencv save png")
+timestamp("  then opencv save png")
+
+sys.exit(0)
 
 ## Some benchmerk test for pi camera stuff
 # pi camera 2 generates 10237440 bytes
