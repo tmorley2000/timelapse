@@ -12,6 +12,23 @@ import threading
 from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
 import cv2
+import piexif
+import piexif.helper
+import json
+import io
+import simplejpeg
+import datetime
+
+##################################################################################
+#
+# Utility to allow json encoding of datetime
+#
+class jsondatetimeencoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 
 ##################################################################################
 #
@@ -29,7 +46,7 @@ class timelapsecamera:
             print('The filename of the SDK library is required set ZWO_ASI_LIB environment variable with the filename')
             sys.exit(1)
 
-    def opencamera(self,cameraname=None):
+    def opencamera(self,cameraname=None,verbose=False):
         num_cameras = asi.get_num_cameras()
         if num_cameras == 0:
             print('No cameras found')
@@ -65,7 +82,9 @@ class timelapsecamera:
         self.camera_info = self.camera.get_camera_property()
         self.controls = self.camera.get_controls()
 
-
+        if verbose:
+            for a in ['IsColorCam','BayerPattern','SupportedBins','SupportedVideoFormat',]:
+                print("%s: %s"%(a,self.camera_info[a]))
 
         # Use minimum USB bandwidth permitted
         self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, self.camera.get_controls()['BandWidth']['MinValue'])
@@ -77,55 +96,55 @@ class timelapsecamera:
 
         self.offset_highest_DR,self.offset_unity_gain,self.gain_lowest_RN,self.offset_lowest_RN=asi._get_gain_offset(self.camera_id)
 
-        print("offset_highest_DR %d"%self.offset_highest_DR)
-        print("offset_unity_gain %d"%self.offset_unity_gain)
-        print("gain_lowest_RN %d"%self.gain_lowest_RN)
-        print("offset_lowest_RN %d"%self.offset_lowest_RN)
+        if verbose:
+            print("offset_highest_DR %d"%self.offset_highest_DR)
+            print("offset_unity_gain %d"%self.offset_unity_gain)
+            print("gain_lowest_RN %d"%self.gain_lowest_RN)
+            print("offset_lowest_RN %d"%self.offset_lowest_RN)
 
-        print("ElecPerADU %f"%self.camera_info['ElecPerADU'])
-        print("BitDepth %d"%self.camera_info['BitDepth'])
+            print("ElecPerADU %f"%self.camera_info['ElecPerADU'])
+            print("BitDepth %d"%self.camera_info['BitDepth'])
 
+            unitygain=10*20*math.log10(self.camera_info['ElecPerADU'])
         
-        unitygain=10*20*math.log10(self.camera_info['ElecPerADU'])
+            fullwell0=(2**self.camera_info['BitDepth'])*self.camera_info['ElecPerADU']
+
+            print("unitygain %f"%unitygain)
+            print("fullwell %f"%fullwell0)
+
+            g=10**(self.gain_lowest_RN/200.0)
+
+            print("g %f"%g)
+            print("gfw %f"%(fullwell0/g))
+
+            g=10**(unitygain/200.0)
+
+            print("g %f"%g)
+            print("gfw %f"%(fullwell0/g))
+
+
+            print("Max DR")
+            apigain=0
+            gain=10**(apigain/200.0)
+            fullwell=fullwell0/gain
+            print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
         
-        fullwell0=(2**self.camera_info['BitDepth'])*self.camera_info['ElecPerADU']
-
-        print("unitygain %f"%unitygain)
-        print("fullwell %f"%fullwell0)
-
-        g=10**(self.gain_lowest_RN/200.0)
-
-        print("g %f"%g)
-        print("gfw %f"%(fullwell0/g))
-
-        g=10**(unitygain/200.0)
-
-        print("g %f"%g)
-        print("gfw %f"%(fullwell0/g))
-
-
-        print("Max DR")
-        apigain=0
-        gain=10**(apigain/200.0)
-        fullwell=fullwell0/gain
-        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
+            print("Unity Gain")
+            apigain=unitygain
+            gain=10**(apigain/200.0)
+            fullwell=fullwell0/gain
+            print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
         
-        print("Unity Gain")
-        apigain=unitygain
-        gain=10**(apigain/200.0)
-        fullwell=fullwell0/gain
-        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
-        
-        print("Lowest RN")
-        apigain=self.gain_lowest_RN
-        gain=10**(apigain/200.0)
-        fullwell=fullwell0/gain
-        print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
+            print("Lowest RN")
+            apigain=self.gain_lowest_RN
+            gain=10**(apigain/200.0)
+            fullwell=fullwell0/gain
+            print("api-gain %3d gain %2.2f fw %6d"%(apigain,gain,fullwell))
         
         self.camera.set_control_value(asi.ASI_WB_B, 95)
         self.camera.set_control_value(asi.ASI_WB_R, 52)
         self.camera.set_control_value(asi.ASI_GAMMA, 50)
-        self.camera.set_control_value(asi.ASI_OFFSET, 50)
+        self.camera.set_control_value(asi.ASI_OFFSET, self.offset_unity_gain)
         self.camera.set_control_value(asi.ASI_FLIP, 0)
 
         #Reset Camera
@@ -139,12 +158,17 @@ class timelapsecamera:
             pass
 
 
+    def updatecontrols(self):
+        self.controls = self.camera.get_controls()
         
     def printcontrols(self):
-        for cn in sorted(controls.keys()):
-            #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys()))))
-            print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(controls[cn][x])), list(controls[cn].keys())))))
+        for cn in sorted(self.controls.keys()):
+            #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(self.controls[cn][x])), list(self.controls[cn].keys()))))
+            print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(self.controls[cn][x])), list(self.controls[cn].keys())))))
 
+
+    def set_bandwidth(self,b):
+        self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, b)
 
     def set_auto_max_brightness(self,n):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, n)
@@ -154,8 +178,11 @@ class timelapsecamera:
     def set_offset(self,val,auto=False):
         return self.camera.set_control_value(asi.ASI_OFFSET,val,auto)
         
+    def get_min_gain(self):
+        return self.controls["Gain"]["MinValue"]
     def get_max_gain(self):
         return self.controls["Gain"]["MaxValue"]
+
     def set_max_auto_gain(self,val,auto=False):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN,val,auto)
         
@@ -164,7 +191,9 @@ class timelapsecamera:
     def set_gain(self,val,auto=False):
         self.camera.set_control_value(asi.ASI_GAIN,val,auto)
 
-    def get_max_expsure(self):
+    def get_min_exposure(self):
+        return self.controls["Exposure"]["MinValue"]
+    def get_max_exposure(self):
         return self.controls["Exposure"]["MaxValue"]
     def set_max_auto_exposure(self,val,auto=False):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_EXP,val,auto)
@@ -172,13 +201,19 @@ class timelapsecamera:
         return self.camera.get_control_value(asi.ASI_EXPOSURE)[0]
     def set_exposure(self,val,auto=False):
         self.camera.set_control_value(asi.ASI_EXPOSURE, val, auto)
+
+    def set_roi(self, start_x=None, start_y=None, width=None, height=None, bins=None, image_type=None):
+        self.camera.set_roi(start_x,start_y,width,height,bins,image_type);
         
     def get_temperature(self):
         return float(self.camera.get_control_value(asi.ASI_TEMPERATURE)[0])/10
     
     def set_image_type(self,t):
-        self.camera.set_image_type(t)
+        types={"RAW16":asi.ASI_IMG_RAW16, "RAW8":asi.ASI_IMG_RAW8, "Y8":asi.ASI_IMG_Y8, "RGB24":asi.ASI_IMG_RGB24}
+        if t in types:
+            t=types[t]
 
+        self.camera.set_image_type(t)
 
     def start_video_capture(self):
         self.camera.start_video_capture()
@@ -191,6 +226,90 @@ class timelapsecamera:
 
     def capture(self):
         return self.camera.capture()
+
+    def postprocessBGR8(self,pxls):
+        t=self.camera.get_image_type()
+        if t == asi.ASI_IMG_RAW16:
+            return cv2.normalize(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U)
+            # it may be a bit faster to so this, but possibly also less accurate
+            return cv2.cvtColor(cv2.normalize(pxls,None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U), cv2.COLOR_BAYER_BG2RGB)
+        elif t == asi.ASI_IMG_RAW8:
+            return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR)
+        elif t==asi.ASI_IMG_Y8:
+            return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR)
+        else: # Hopefully asi.ASI_IMG_RGB24
+            return pxls
+
+    def createmetadata(self,dt):
+        return {"Exposure":self.get_exposure()/1000000,
+                "Gain":self.get_gain(),
+                "Offset":self.get_offset(),
+                "Dropped":self.get_dropped_frames(),
+                "SystemTemp":"%.1fC"%(getsystemp()),
+                "CameraTemp":"%.1fC"%(self.get_temperature()),
+                "DateTime":dt
+               }
+
+    def annotatemetadata(self,pxls,metadata):
+        text=[]
+        text.append(metadata["DateTime"].isoformat())
+        text.append("Exp: %f Gain: %d Offset: %d"%(metadata["Exposure"],metadata["Gain"],metadata["Offset"]))
+        text.append("SystemTemp: %s CameraTemp: %s"%(metadata["SystemTemp"],metadata["CameraTemp"]))
+
+        annotateimage(pxls,text)
+
+    def create_exif(self,metadata):
+        zero_ifd = {piexif.ImageIFD.Make: "ZWO",
+                    piexif.ImageIFD.Model: self.camera_info['Name'],
+                    piexif.ImageIFD.Software: "timelapse-video.py",
+                    piexif.ImageIFD.DateTime: metadata["DateTime"].strftime("%Y:%m:%d %H:%M:%S")}
+
+        exif_ifd = {piexif.ExifIFD.DateTimeOriginal: metadata["DateTime"].strftime("%Y:%m:%d %H:%M:%S"),
+                    piexif.ExifIFD.ExposureTime: (int(metadata["Exposure"]*1000000), 1000000),
+                    piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(json.dumps(metadata,sort_keys=True,cls=jsondatetimeencoder))}
+        exif_bytes = piexif.dump({"0th": zero_ifd, "Exif": exif_ifd})
+
+        return exif_bytes
+
+    def create_jpeg(self,pxls,exif=None):
+        jpeg_bytes=simplejpeg.encode_jpeg(pxls, quality=95, colorspace="BGR", colorsubsampling="420")
+        if exif is not None:
+            new_bytes=io.BytesIO()
+            piexif.insert(exif,jpeg_bytes,new_bytes)
+            jpeg_bytes=new_bytes.getbuffer()
+        return jpeg_bytes
+
+    def savejpeg(self,jpeg_bytes,dirname,filename,linkname=None):
+        if '/' in filename:
+            os.makedirs(os.path.dirname(os.path.join(dirname,filename)),exist_ok=True)
+
+        with open(os.path.join(dirname,filename),"wb") as file:
+            file.write(jpeg_bytes)
+
+        if linkname is not None and linkname != "":
+            os.symlink(filename,os.path.join(dirname,linkname+".new"))
+            os.rename(os.path.join(dirname,linkname+".new"),os.path.join(dirname,linkname))
+
+    def writemetadata(self,metadata,imagefilename,dirname,filename):
+        if filename is not None and filename != "":
+            if '/' in filename:
+                os.makedirs(os.path.dirname(os.path.join(dirname,filename)),exist_ok=True)
+           
+            with open(os.path.join(dirname,filename),"a+") as mdfile:
+                mdfile.seek(0)
+                mdstr=mdfile.read()
+                try:
+                    mdjson=json.loads(mdstr)
+                except json.decoder.JSONDecodeError:
+                    print("Invalid or empty metadata json file, resetting")
+                    mdjson={}
+                mdjson[os.path.basename(imagefilename)]=metadata
+                mdfile.seek(0)
+                mdfile.truncate()
+                mdfile.write(json.dumps(mdjson,sort_keys=True,cls=jsondatetimeencoder))
+    
+
+
 ##################################################################################
 #
 # Background thread to save off an image, png or jpeg encoding can be slow!
@@ -217,63 +336,6 @@ saverworkerthread.start()
 
 ##################################################################################
 #
-# Debayer processing. Either using opencv or just with numpy.
-#
-# The numpy versions cut the resolution in half, as thats easy!
-#
-def cvdebayer16to8(pxls):
-    #return (cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)/256).astype("uint8")
-    return cv2.cvtColor((pxls/256).astype("uint8"), cv2.COLOR_BAYER_BG2RGB)
-
-def cvdebayer(pxls):
-    return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2RGB)
-
-
-def debayer16to8(pxls):
-    r=(pxls[::2,::2]>>8).astype("uint8")
-# Type conversion if camer is true 16bit, for cameras with 15 or less bits, its not necessary
-#    g1=pxls[1::2,::2].astype("uint32")
-#    g2=pxls[::2,1::2].astype("uint32")
-#    g=((g1+g2)/2).astype("uint16")
-
-#    g1=pxls[1::2,::2]
-#    g2=pxls[::2,1::2]
-#    g=(g1+g2)>>1
-
-    g=((pxls[1::2,::2]>>1+pxls[::2,1::2]>>1)>>8).astype("uint8")
-    b=(pxls[1::2,1::2]>>8).astype("uint8")
-
-#    r=r-numpy.min(r)
-#    g=g-numpy.min(g)
-#    b=b-numpy.min(b)
-
-#    r=(((r.astype(float)/65536)**0.52)*65536)
-#    g=(((g.astype(float)/65536)**0.52)*65536)
-#    b=(((b.astype(float)/65536)**0.52)*65536)
-
-    #return (numpy.stack((r,g,b),axis=-1)/256).astype("uint8")
-    #return (numpy.stack((r,g,b),axis=-1)>>8).astype("uint8")
-    return numpy.stack((r,g,b),axis=-1)
-
-
-def debayer8(pxls):
-    r=pxls[::2,::2]
-    g1=pxls[1::2,::2].astype("uint16")
-    g2=pxls[::2,1::2].astype("uint16")
-    g=((g1+g2)/2).astype("uint8")
-    b=pxls[1::2,1::2]
-
-#    r=(((r.astype(float)/65536)**0.52)*65536)
-#    g=(((g.astype(float)/65536)**0.52)*65536)
-#    b=(((b.astype(float)/65536)**0.52)*65536)
-
-    return numpy.stack((r,g,b),axis=-1)
-
-def bgr2rgb(pxls):
-    return pxls[:, :, ::-1]  # Convert BGR to RGB
-
-##################################################################################
-#
 # System Info
 #
 def getsystemp():
@@ -287,36 +349,12 @@ def getsystemp():
 #
 # Takes a list of strings and inlays them top left on ofthe image.
 #
-def inlaytext(img,text,font):
-    
-    width=0
-    height=0
-    textimage=Image.new("RGB",(width,height+1))
-    draw=ImageDraw.Draw(textimage)
-
+def annotateimage(pxls,text,foreground=(255,255,255),background=(0,0,0),scale=0.7,thickness=2,origin=(0,30),font=cv2.FONT_HERSHEY_SIMPLEX):
+    y=-2
     for line in text:
-        (w,h)=draw.textsize(line,font=font)
-        if width < (w+2):
-            newwidth=w+2
-        newheight=height+h
-        newtextimage=Image.new("RGB",(newwidth,newheight+1))
-        newtextimage.paste(textimage,(0,0))
-        draw=ImageDraw.Draw(newtextimage)
-        draw.text((1,height),line,font=font)
+        (w, h), baseline=cv2.getTextSize(line,font, scale, thickness)
+        y+=h+6
+        cv2.rectangle(pxls,(0,y+1+baseline),(w+2,y-h-2),background,-1)
+        cv2.putText(pxls, line, (1,y), font, scale, foreground, thickness)
 
-        width,height,textimage=(newwidth,newheight,newtextimage)
 
-    # Make black box a multiple of 16 on each dimension, useful is pasting into pre-encoded jpg.
-    # heightmultiple=16
-    # widthmultiple=16
-
-    # newheight=(((height+1-1)/heightmultiple)+1)*heightmultiple
-    # newwidth=(((width-1)/widthmultiple)+1)*widthmultiple
-
-    # if width!=newwidth or height!=newheight:
-    #     newtextimage=Image.new("RGB",(newwidth,newheight))
-    #     newtextimage.paste(textimage,(0,0))
-    #     textimage=newtextimage
-
-    img.paste(textimage,(0,0))
-    
