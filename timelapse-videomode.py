@@ -37,6 +37,8 @@ camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
 camera.opencamera(args.cameraname,verbose=args.verbose)
 camera.set_roi(bins=args.binning)
 
+camera.set_image_type(args.imagemode)
+
 gain=args.gain
 gain=max(gain,camera.get_min_gain())
 gain=min(gain,camera.get_max_gain())
