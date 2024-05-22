@@ -69,14 +69,12 @@ if args.imagemode == "RAW16":
     stacktype='uint32'
     clipmin,clipmax=(0,65535)
     postprocess= timelapseutils.debayer16to8
-    postprocess= timelapseutils.cvdebayer16to8
 elif args.imagemode == "RAW8":
     camera.set_image_type(asi.ASI_IMG_RAW8)
     outputmode='RGB'
     stacktype='uint16'
     clipmin,clipmax=(0,255)
     postprocess= timelapseutils.debayer8
-    postprocess= timelapseutils.cvdebayer
 elif args.imagemode == "Y8":
     camera.set_image_type(asi.ASI_IMG_Y8)
     outputmode='L'
