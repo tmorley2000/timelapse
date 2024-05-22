@@ -240,13 +240,14 @@ class timelapsecamera:
         else: # Hopefully asi.ASI_IMG_RGB24
             return pxls
 
-    def createmetadata(self,dt):
+    def createmetadata(self,dt,swname="timelapse"):
         return {"Exposure":self.get_exposure()/1000000,
                 "Gain":self.get_gain(),
                 "Offset":self.get_offset(),
                 "Dropped":self.get_dropped_frames(),
                 "SystemTemp":"%.1fC"%(getsystemp()),
                 "CameraTemp":"%.1fC"%(self.get_temperature()),
+                "Software":swname,
                 "DateTime":dt
                }
 
@@ -261,7 +262,7 @@ class timelapsecamera:
     def create_exif(self,metadata):
         zero_ifd = {piexif.ImageIFD.Make: "ZWO",
                     piexif.ImageIFD.Model: self.camera_info['Name'],
-                    piexif.ImageIFD.Software: "timelapse-video.py",
+                    piexif.ImageIFD.Software: metadata["Software"],
                     piexif.ImageIFD.DateTime: metadata["DateTime"].strftime("%Y:%m:%d %H:%M:%S")}
 
         exif_ifd = {piexif.ExifIFD.DateTimeOriginal: metadata["DateTime"].strftime("%Y:%m:%d %H:%M:%S"),

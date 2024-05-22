@@ -14,7 +14,7 @@ import datetime
 import time
 import json
 
-
+swname="timelapse-videomode.py"
 
 import timelapseutils
 
@@ -67,7 +67,7 @@ while True:
 
     dt=datetime.datetime.utcnow()
 
-    metadata=camera.createmetadata(dt)
+    metadata=camera.createmetadata(dt,swname=swname)
 
     if args.verbose: print(" Exp: %d Gain %d"%(metadata["Exposure"],metadata["Gain"]))
 
