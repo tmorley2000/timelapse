@@ -29,7 +29,7 @@ parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", he
 parser.add_argument('--linkname', type=str, default="latest.jpg", help='Link to latest image')
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--binning', type=int, default=1, help='Image binning')
-parser.add_argument('--verbose',  default=False, action='store_true', help='Image binning')
+parser.add_argument('--verbose',  default=False, action='store_true', help='Verbose')
 
 args = parser.parse_args()
 

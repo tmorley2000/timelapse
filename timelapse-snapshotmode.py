@@ -9,9 +9,9 @@ import numpy
 import math
 import queue
 import threading
-from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
-import distutils.dir_util
-import cv2
+import datetime
+
+swname="timelapse-snapshotmode.py"
 
 
 import timelapseutils
@@ -27,17 +27,19 @@ parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
+parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", help='Separate dump of image metadata')
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.png", help='Filename template (parsed with strftime, directories automatically created)')
+parser.add_argument('--linkname', type=str, default="latest.jpg", help='Link to latest image')
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
-parser.add_argument('--font', type=str, default='/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf', help='TTF font file for overlay text')
-parser.add_argument('--fontsize', type=int, default=12, help='Font size for overlay text')
+parser.add_argument('--binning', type=int, default=1, help='Image binning')
+parser.add_argument('--verbose',  default=False, action='store_true', help='Verbose')
 
 args = parser.parse_args()
 
 camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
 camera.opencamera(args.cameraname)
+camera.set_roi(bins=args.binning)
 
-font=ImageFont.truetype(args.font,args.fontsize)
 
 #Usable Expsure range
 minexp=args.minexp
@@ -83,33 +85,15 @@ exp0=args.minexp*(2**(idealgain/doublegain))
 
 # Brightness to target
 tgtavg=80
+tgtavg=128
+tgtavg=160
 
 lasttime=time.time()
 nexttime=args.interval*int(1+time.time()/args.interval)
 frameno=1
 
 
-if args.imagemode == "RAW16":
-    camera.set_image_type(asi.ASI_IMG_RAW16)
-    outputmode='RGB'
-    postprocess= timelapseutils.debayer16to8
-    postprocess= timelapseutils.cvdebayer16to8
-elif args.imagemode == "RAW8":
-    camera.set_image_type(asi.ASI_IMG_RAW8)
-    outputmode='RGB'
-    postprocess= timelapseutils.debayer8
-    postprocess= timelapseutils.cvdebayer
-elif args.imagemode == "Y8":
-    camera.set_image_type(asi.ASI_IMG_Y8)
-    outputmode='L'
-    postprocess=None
-else:
-    camera.set_image_type(asi.ASI_IMG_RGB24)
-    outputmode='RGB'
-    postprocess=timelapseutils.bgr2rgb
-
-#mode = 'I;16' <---- 16 bit raw mode
-
+camera.set_image_type(args.imagemode)
 
 while True:
     now=time.time()
@@ -125,45 +109,36 @@ while True:
     nexttime+=args.interval
 
     print("Start:   %f"%(now))
-
-    systemtemp=timelapseutils.getsystemp()
     
     print("Setup:   %f"%(time.time()-now))
 
     camera.set_gain( int(gain))
     camera.set_exposure( int(exp))
 
-    print("Capture: %f"%(time.time()-now))
+    dt=datetime.datetime.utcnow()
+
     pxls=camera.capture()
+    pxls=camera.postprocessBGR8(pxls)
 
     cameratemp=camera.get_temperature()
+    systemtemp=timelapseutils.getsystemp()
 
-    print("Reshape: %f shape %s type %s"%(time.time()-now,str(pxls.shape),str(pxls.dtype)))
-
-    t0=time.time()
-    if postprocess is not None:
-        pxls=postprocess(pxls)
-    print("debayer %f"%(time.time()-t0))
-    newimage = Image.fromarray(pxls, mode=outputmode)
-
-    print("Text:    %f"%(time.time()-now))
-
-    text=["%s Exp %d Gain %d"%(time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)),int(exp),int(gain)),
-          "Camera Temp %.1f\260C System Temp %.1f\260C"%(cameratemp,systemtemp),]
-
-    timelapseutils.inlaytext(newimage,text,font)
+    metadata=camera.createmetadata(dt,swname=swname)
     
-    filename=time.strftime(args.filename, time.gmtime(now))
+    if args.verbose: print(" Exp: %d Gain %d"%(metadata["Exposure"],metadata["Gain"]))
 
-    if "/" in args.filename:
-        distutils.dir_util.mkpath(args.dirname+"/"+time.strftime(args.filename[:args.filename.rfind("/")],time.gmtime(now)))
+    camera.annotatemetadata(pxls,metadata)
 
-    print("Queue Save: %f"%(time.time()-now))
-    #saveimage(newimage,args.dirname+"/"+filename,dirname+args.latest)
-    timelapseutils.saverqueue.put((newimage,args.dirname,filename,args.latest))
+    imagefilename=dt.strftime(args.filename)
 
-    #avg=numpy.average(pxls)
-    # Center weight!
+    jpeg_bytes=camera.create_jpeg(pxls,camera.create_exif(metadata))
+
+    camera.savejpeg(jpeg_bytes,args.dirname,imagefilename,args.linkname)
+
+    metadatafilename=dt.strftime(args.metadata)
+
+    camera.writemetadata(metadata,imagefilename,args.dirname,metadatafilename)
+
     avg=numpy.average(pxls[(int(pxls.shape[0]/3)):(2*int(pxls.shape[0]/3)),(int(pxls.shape[1]/3)):(2*int(pxls.shape[1]/3)),...])
     exp0=(exp0*tgtavg/avg+3*exp0)/4
 
@@ -171,7 +146,7 @@ while True:
 
     (gain,exp,exp0)=gainexp(exp0)
 
-    print(("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain)))
+    print(("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain)),flush=True)
 
     frameno+=1
     
