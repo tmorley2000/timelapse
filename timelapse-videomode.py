@@ -23,6 +23,8 @@ parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'),
 parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
 parser.add_argument('--exp', type=int, default=15000, help='Maximum exposure and frame duration (ms)')
 parser.add_argument('--gain', type=int, default=200, help='Maximum gain (dB*10)')
+parser.add_argument('--target', type=int, default=None, help='Target brightness for auto exposure')
+parser.add_argument('--gamma', type=int, default=None, help='Gamma correction (0-100, 50 default)')
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.jpg", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", help='Separate dump of image metadata')
@@ -53,7 +55,13 @@ camera.set_exposure(camera.get_min_exposure(),auto=True)
 camera.set_max_auto_gain(gain)
 camera.set_max_auto_exposure(exp)
 
+if args.target is not None:
+    camera.set_auto_max_brightness(args.target)
+
 camera.set_bandwidth(100)
+
+if args.gamma is not None:
+    camera.set_gamma(args.gamma)
 
 camera.start_video_capture()
 

@@ -143,7 +143,7 @@ class timelapsecamera:
         
         self.camera.set_control_value(asi.ASI_WB_B, 95)
         self.camera.set_control_value(asi.ASI_WB_R, 52)
-        self.camera.set_control_value(asi.ASI_GAMMA, 50)
+        #self.camera.set_control_value(asi.ASI_GAMMA, 50)
         self.camera.set_control_value(asi.ASI_OFFSET, self.offset_unity_gain)
         self.camera.set_control_value(asi.ASI_FLIP, 0)
 
@@ -170,13 +170,30 @@ class timelapsecamera:
     def set_bandwidth(self,b):
         self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, b)
 
+    def get_auto_max_brightness(self):
+        return self.camera.get_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS)[0]
     def set_auto_max_brightness(self,n):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, n)
+
+    def get_whitebalance_red(self):
+        return self.camera.get_control_value(asi.ASI_WB_B)[0]
+    def set_whitebalance_red(self,val):
+        self.camera.set_control_value(asi.ASI_WB_B,val)
+
+    def get_whitebalance_blue(self):
+        return self.camera.get_control_value(asi.ASI_WB_B)[0]
+    def set_whitebalance_blue(self,val):
+        self.camera.set_control_value(asi.ASI_WB_B,val)
 
     def get_offset(self):
         return self.camera.get_control_value(asi.ASI_OFFSET)[0]
     def set_offset(self,val,auto=False):
-        return self.camera.set_control_value(asi.ASI_OFFSET,val,auto)
+        self.camera.set_control_value(asi.ASI_OFFSET,val,auto)
+        
+    def get_gamma(self):
+        return self.camera.get_control_value(asi.ASI_GAMMA)[0]
+    def set_gamma(self,val):
+        self.camera.set_control_value(asi.ASI_GAMMA,val)
         
     def get_min_gain(self):
         return self.controls["Gain"]["MinValue"]
@@ -215,6 +232,11 @@ class timelapsecamera:
 
         self.camera.set_image_type(t)
 
+    def get_image_type(self):
+        types={asi.ASI_IMG_RAW16:"RAW16", asi.ASI_IMG_RAW8:"RAW8", asi.ASI_IMG_Y8:"Y8", asi.ASI_IMG_RGB24:"RGB24"}
+
+        return types[self.camera.get_image_type()]
+
     def start_video_capture(self):
         self.camera.start_video_capture()
 
@@ -244,6 +266,11 @@ class timelapsecamera:
         return {"Exposure":self.get_exposure()/1000000,
                 "Gain":self.get_gain(),
                 "Offset":self.get_offset(),
+                "AutoExposureTarget":self.get_auto_max_brightness(),
+                "WhiteBalanceRed":self.get_whitebalance_red(),
+                "WhiteBalanceBlue":self.get_whitebalance_blue(),
+                "Gamma":self.get_gamma(),
+                "ImageType":self.get_image_type(),
                 "Dropped":self.get_dropped_frames(),
                 "SystemTemp":"%.1fC"%(getsystemp()),
                 "CameraTemp":"%.1fC"%(self.get_temperature()),
