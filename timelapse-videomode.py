@@ -24,7 +24,8 @@ parser.add_argument('--cameraname', type=str, default=None, help='Name of camera
 parser.add_argument('--exp', type=int, default=15000, help='Maximum exposure and frame duration (ms)')
 parser.add_argument('--gain', type=int, default=200, help='Maximum gain (dB*10)')
 parser.add_argument('--target', type=int, default=None, help='Target brightness for auto exposure')
-parser.add_argument('--gamma', type=int, default=None, help='Gamma correction (0-100, 50 default)')
+parser.add_argument('--gamma', type=int, default=None, help='Camera gamma correction (0-100, 50 default)')
+parser.add_argument('--swgamma', type=float, default=1.0, help='Software gamma correction (float, 1.0 default)')
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.jpg", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", help='Separate dump of image metadata')
@@ -63,6 +64,8 @@ camera.set_bandwidth(100)
 if args.gamma is not None:
     camera.set_gamma(args.gamma)
 
+camera.set_swgamma(args.swgamma)
+
 camera.start_video_capture()
 
 while True:
@@ -73,9 +76,9 @@ while True:
 
     pxls=camera.capture_video_frame()
 
-    pxls=camera.postprocessBGR8(pxls)
-
     dt=datetime.datetime.utcnow()
+
+    pxls=camera.postprocessBGR8(pxls)
 
     metadata=camera.createmetadata(dt,swname=swname)
 

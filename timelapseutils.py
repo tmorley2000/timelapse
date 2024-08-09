@@ -147,6 +147,8 @@ class timelapsecamera:
         self.camera.set_control_value(asi.ASI_OFFSET, self.offset_unity_gain)
         self.camera.set_control_value(asi.ASI_FLIP, 0)
 
+        self.swgamma=1.0
+
         #Reset Camera
         try:
             # Force any single exposure to be halted
@@ -194,6 +196,11 @@ class timelapsecamera:
         return self.camera.get_control_value(asi.ASI_GAMMA)[0]
     def set_gamma(self,val):
         self.camera.set_control_value(asi.ASI_GAMMA,val)
+
+    def get_swgamma(self):
+        return self.swgamma
+    def set_swgamma(self,val):
+        self.swgamma=val
         
     def get_min_gain(self):
         return self.controls["Gain"]["MinValue"]
@@ -249,18 +256,49 @@ class timelapsecamera:
     def capture(self):
         return self.camera.capture()
 
+    # From https://stackoverflow.com/questions/71734861/opencv-python-lut-for-16bit-image
+    def adjust_gamma16(self,image, gamma=1.0):
+        if gamma==1.0:
+            return image
+        # build a lookup table mapping the pixel values [0, 65535] to
+        # their adjusted gamma values
+        inv_gamma = 1.0 / gamma
+        table = ((numpy.arange(0, 65536) / 65535) ** inv_gamma) * 65535
+
+        # Ensure table is 16-bit
+        table = table.astype(numpy.uint16)
+
+        # Now just index into this with the intensities to get the output
+        return table[image]
+
+    def adjust_gamma(self,image, gamma=1.0):
+        if gamma==1.0:
+            return image
+        # build a lookup table mapping the pixel values [0, 255] to
+        # their adjusted gamma values
+        inv_gamma = 1.0 / gamma
+        table = ((numpy.arange(0, 256) / 255) ** inv_gamma) * 255
+
+        # Ensure table is 16-bit
+        table = table.astype(numpy.uint8)
+
+        # Now just index into this with the intensities to get the output
+        return table[image]
+
+
     def postprocessBGR8(self,pxls):
         t=self.camera.get_image_type()
+	
         if t == asi.ASI_IMG_RAW16:
-            return cv2.normalize(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U)
-            # it may be a bit faster to so this, but possibly also less accurate
-            return cv2.cvtColor(cv2.normalize(pxls,None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U), cv2.COLOR_BAYER_BG2RGB)
+            return cv2.normalize(self.adjust_gamma16(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U)
+            # Convert to 8 bit and then de-bayer, faster? less accurate?
+            return self.adjust_gamma(cv2.cvtColor(cv2.normalize(pxls,None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U), cv2.COLOR_BAYER_BG2RGB),self.swgamma)
         elif t == asi.ASI_IMG_RAW8:
-            return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR)
+            return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma)
         elif t==asi.ASI_IMG_Y8:
-            return cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR)
+            return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma)
         else: # Hopefully asi.ASI_IMG_RGB24
-            return pxls
+            return self.adjust_gamma(pxls,self.swgamma)
 
     def createmetadata(self,dt,swname="timelapse"):
         return {"Exposure":self.get_exposure()/1000000,
@@ -269,7 +307,8 @@ class timelapsecamera:
                 "AutoExposureTarget":self.get_auto_max_brightness(),
                 "WhiteBalanceRed":self.get_whitebalance_red(),
                 "WhiteBalanceBlue":self.get_whitebalance_blue(),
-                "Gamma":self.get_gamma(),
+                "CameraGamma":self.get_gamma(),
+                "SoftwareGamma":self.get_swgamma(),
                 "ImageType":self.get_image_type(),
                 "Dropped":self.get_dropped_frames(),
                 "SystemTemp":"%.1fC"%(getsystemp()),

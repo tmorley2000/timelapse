@@ -25,6 +25,8 @@ parser.add_argument('--mingain', type=float, default=0.0, help='Minimum gain (%%
 parser.add_argument('--maxgain', type=float, default=98.0, help='Maximum gain (%% of camera full gain)')
 parser.add_argument('--idealgain', type=float, default=60.0, help='Ideal gain (%% of camera full gain)')
 parser.add_argument('--interval', type=int, default=15, help='Timelapse interval (s)')
+parser.add_argument('--gamma', type=int, default=None, help='Camera gamma correction (0-100, 50 default)')
+parser.add_argument('--swgamma', type=float, default=1.0, help='Software gamma correction (float, 1.0 default)')
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", help='Separate dump of image metadata')
@@ -40,6 +42,10 @@ camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
 camera.opencamera(args.cameraname)
 camera.set_roi(bins=args.binning)
 
+if args.gamma is not None:
+    camera.set_gamma(args.gamma)
+
+camera.set_swgamma(args.swgamma)
 
 #Usable Expsure range
 minexp=args.minexp

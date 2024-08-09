@@ -11,13 +11,9 @@ import math
 import distutils.dir_util
 
 
-from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 
 env_filename = os.getenv('ZWO_ASI_LIB')
 
-fontfile="/usr/share/fonts/truetype/ttf-bitstream-vera/VeraBd.ttf"
-fontsize=12
-font=ImageFont.truetype(fontfile,fontsize)
 
 # Initialize zwoasi with the name of the SDK library
 if env_filename:
