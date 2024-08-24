@@ -46,12 +46,14 @@ gain=args.gain
 gain=max(gain,camera.get_min_gain())
 gain=min(gain,camera.get_max_gain())
 
+min_gain=camera.get_min_gain()
+
 exp=args.exp
 exp=max(exp,camera.get_min_exposure())
 exp=min(exp,camera.get_max_exposure())
 
 print("Set max gain %d, max exp %d"%(gain,exp))
-camera.set_gain(camera.get_min_gain(),auto=True)
+camera.set_gain(min_gain,auto=False)
 camera.set_exposure(camera.get_min_exposure(),auto=True)
 camera.set_max_auto_gain(gain)
 camera.set_max_auto_exposure(exp)
@@ -68,6 +70,9 @@ camera.set_swgamma(args.swgamma)
 
 camera.start_video_capture()
 
+brightmode=True
+delay=0
+
 while True:
     start=time.time()
     dt=datetime.datetime.fromtimestamp(start)
@@ -82,7 +87,28 @@ while True:
 
     metadata=camera.createmetadata(dt,swname=swname)
 
-    if args.verbose: print(" Exp: %d Gain %d"%(metadata["Exposure"],metadata["Gain"]))
+    if args.verbose: print(" Exp: %f Gain %d"%(metadata["Exposure"],metadata["Gain"]))
+
+    if delay==0:
+        if brightmode:
+            print("exp=",camera.get_exposure())
+            if camera.get_exposure()==exp*1000:
+                camera.set_exposure(exp*1000,auto=False)
+                camera.set_gain(min_gain,auto=True)
+                brightmode=False
+                print("switching",brightmode)
+                delay=5
+        else:
+            print("gain=",camera.get_gain())
+            if camera.get_gain()==min_gain:
+                camera.set_exposure(exp*1000,auto=True)
+                camera.set_gain(min_gain,auto=False)
+                brightmode=True
+                print("switching",brightmode)
+                delay=5
+    else:
+        delay-=1
+            
 
     camera.annotatemetadata(pxls,metadata)
 
