@@ -9,7 +9,6 @@ import numpy
 import math
 import queue
 import threading
-#from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import datetime
 import time
 import json
@@ -29,6 +28,8 @@ parser.add_argument('--swgamma', type=float, default=1.0, help='Software gamma c
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--filename', type=str, default="%Y/%m/%d/%Y%m%dT%H%M%S.jpg", help='Filename template (parsed with strftime, directories automatically created)')
 parser.add_argument('--metadata', type=str, default="%Y/%m/%d/metadata.json", help='Separate dump of image metadata')
+parser.add_argument('--font', type=str, default='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', help='TTF font file for overlay text')
+parser.add_argument('--fontsize', type=int, default=20, help='Font size for overlay text')
 parser.add_argument('--linkname', type=str, default="latest.jpg", help='Link to latest image')
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--binning', type=int, default=1, help='Image binning')
@@ -110,7 +111,7 @@ while True:
         delay-=1
             
 
-    camera.annotatemetadata(pxls,metadata)
+    camera.annotatemetadata(pxls,metadata,font=args.font,fontsize=args.fontsize)
 
     imagefilename=dt.strftime(args.filename)
 

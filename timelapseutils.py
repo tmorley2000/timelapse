@@ -317,13 +317,13 @@ class timelapsecamera:
                 "DateTime":dt
                }
 
-    def annotatemetadata(self,pxls,metadata):
+    def annotatemetadata(self,pxls,metadata,font=None,fontsize=None):
         text=[]
         text.append(metadata["DateTime"].isoformat())
         text.append("Exp: %f Gain: %d Offset: %d"%(metadata["Exposure"],metadata["Gain"],metadata["Offset"]))
         text.append("SystemTemp: %s CameraTemp: %s"%(metadata["SystemTemp"],metadata["CameraTemp"]))
 
-        annotateimage(pxls,text)
+        self.annotateimage(pxls,text,font=font,fontsize=fontsize)
 
     def create_exif(self,metadata):
         zero_ifd = {piexif.ImageIFD.Make: "ZWO",
@@ -375,6 +375,37 @@ class timelapsecamera:
                 mdfile.truncate()
                 mdfile.write(json.dumps(mdjson,sort_keys=True,cls=jsondatetimeencoder))
     
+    # Takes a list of strings and inlays them top left on of the image.
+    fontcache={}
+    def annotateimage(self,pxls,text,foreground=(255,255,255),background=(0,0,0),fontsize=None,origin=(0,30),font=None):
+        if fontsize is None:
+            fontsize=12
+        thickness=-1 # Filled rather than outline
+        if isinstance(font,str):
+            # Assume its a truetype font name!
+            if font not in self.fontcache:
+                self.fontcache[font]=cv2.freetype.createFreeType2()
+                self.fontcache[font].loadFontData(font,0)
+            y=-2
+            for line in text:
+                (w, h), baseline=self.fontcache[font].getTextSize(line, fontsize, thickness)
+                y+=h+6
+                cv2.rectangle(pxls,(0,y+1+baseline),(w+2,y-h-2),background,-1)
+                self.fontcache[font].putText(pxls, line, (1,y), fontsize, foreground, thickness, cv2.LINE_8, True)
+        else:
+            if font is None:
+                font=cv2.FONT_HERSHEY_SIMPLEX
+            # Fudge Factor to make them about the same size as freetype fonts!
+            fontsize=fontsize/30
+            thickness=2
+            y=-2
+            for line in text:
+                (w, h), baseline=cv2.getTextSize(line,font, fontsize, thickness)
+                y+=h+6
+                cv2.rectangle(pxls,(0,y+1+baseline),(w+2,y-h-2),background,-1)
+                cv2.putText(pxls, line, (1,y), font, fontsize, foreground, thickness)
+
+
 
 
 ##################################################################################
@@ -411,17 +442,4 @@ def getsystemp():
     systemtempfile.close()
 
     return systemtemp
-
-##################################################################################
-#
-# Takes a list of strings and inlays them top left on ofthe image.
-#
-def annotateimage(pxls,text,foreground=(255,255,255),background=(0,0,0),scale=0.7,thickness=2,origin=(0,30),font=cv2.FONT_HERSHEY_SIMPLEX):
-    y=-2
-    for line in text:
-        (w, h), baseline=cv2.getTextSize(line,font, scale, thickness)
-        y+=h+6
-        cv2.rectangle(pxls,(0,y+1+baseline),(w+2,y-h-2),background,-1)
-        cv2.putText(pxls, line, (1,y), font, scale, foreground, thickness)
-
 

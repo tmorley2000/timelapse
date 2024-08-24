@@ -26,6 +26,8 @@ parser.add_argument('--swgamma', type=float, default=1.0, help='Software gamma c
 parser.add_argument('--imagemode', default="RGB24", help='Capture mode for the camera', choices=['RGB24','Y8','RAW16','RAW8'])
 parser.add_argument('--filename', type=str, default="output.jpg", help='Filename (use $count for image number)')
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
+parser.add_argument('--font', type=str, default='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', help='TTF font file for overlay text')
+parser.add_argument('--fontsize', type=int, default=20, help='Font size for overlay text')
 parser.add_argument('--binning', type=int, default=1, help='Image binning')
 parser.add_argument('--count', type=int, default=1, help='Image count')
 
@@ -63,7 +65,7 @@ for count in range(args.count):
 
     metadata=camera.createmetadata(dt,swname=swname)
 
-    camera.annotatemetadata(pxls,metadata)
+    camera.annotatemetadata(pxls,metadata,font=args.font, fontsize=args.fontsize)
 
     jpeg_bytes=camera.create_jpeg(pxls,camera.create_exif(metadata))
 
