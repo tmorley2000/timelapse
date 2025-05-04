@@ -69,10 +69,13 @@ if args.gamma is not None:
 
 camera.set_swgamma(args.swgamma)
 
-camera.start_video_capture()
+camera.set_exposure(exp*1000,auto=False)
+camera.set_gain(min_gain,auto=True)
+brightmode=False
 
-brightmode=True
 delay=0
+
+camera.start_video_capture()
 
 while True:
     start=time.time()

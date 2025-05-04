@@ -9,7 +9,7 @@ import numpy
 import math
 import queue
 import threading
-from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
+#from PIL import Image, ImageDraw, ImageFont, ImageMath, ImageChops
 import distutils.dir_util
 import cv2
 import piexif
