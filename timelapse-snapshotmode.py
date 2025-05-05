@@ -13,7 +13,6 @@ import datetime
 
 swname="timelapse-snapshotmode.py"
 
-
 import timelapseutils
 
 parser = argparse.ArgumentParser(description='Timelapse for ZWO ASI cameras', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -35,11 +34,22 @@ parser.add_argument('--linkname', type=str, default="latest.jpg", help='Link to 
 parser.add_argument('--latest', type=str, default="latest.png", help='Name of file to symlink latest image to')
 parser.add_argument('--binning', type=int, default=1, help='Image binning')
 parser.add_argument('--verbose',  default=False, action='store_true', help='Verbose')
+parser.add_argument('--debug',  default=False, action='store_true', help='Tracing calls to the camera object')
 
 args = parser.parse_args()
 
+if args.debug:
+    def trace_calls(frame, event, arg):
+        if event == 'call' and 'zwoasi/__init__.py' in frame.f_code.co_filename and 'zwoasi/__init__.py' not in frame.f_back.f_code.co_filename:
+
+            print(f'Calling function: {frame.f_code.co_qualname} args: {frame.f_locals}')
+        return trace_calls
+
+    sys.settrace(trace_calls)
+
+
 camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
-camera.opencamera(args.cameraname)
+camera.opencamera(args.cameraname,verbose=args.verbose)
 camera.set_roi(bins=args.binning)
 
 if args.gamma is not None:
@@ -115,22 +125,31 @@ while True:
     nexttime+=args.interval
 
     print("Start:   %f"%(now))
-    
+
     print("Setup:   %f"%(time.time()-now))
 
-    camera.set_gain( int(gain))
-    camera.set_exposure( int(exp))
+    print("Settings:   Gain %d Exp %d"%(gain,exp))
+
+    camera.set_gain(gain,False)
+    #time.sleep(0.1)
+    camera.set_exposure(exp,False)
+    #time.sleep(0.1)
 
     dt=datetime.datetime.utcnow()
 
-    pxls=camera.capture()
+    try:
+        pxls=camera.capture()
+    except :
+        print("Capture failed, exposure_status %d"%(camera.camera.get_exposure_status()) )
+        raise
+
     pxls=camera.postprocessBGR8(pxls)
 
     cameratemp=camera.get_temperature()
     systemtemp=timelapseutils.getsystemp()
 
     metadata=camera.createmetadata(dt,swname=swname)
-    
+
     if args.verbose: print(" Exp: %d Gain %d"%(metadata["Exposure"],metadata["Gain"]))
 
     camera.annotatemetadata(pxls,metadata)
@@ -155,4 +174,4 @@ while True:
     print(("AVG %f EXP0 %f NEWEXP %f NEWGAIN %f" % (avg,exp0,exp,gain)),flush=True)
 
     frameno+=1
-    
+

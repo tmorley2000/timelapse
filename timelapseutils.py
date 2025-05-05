@@ -87,7 +87,8 @@ class timelapsecamera:
                 print("%s: %s"%(a,self.camera_info[a]))
 
         # Use minimum USB bandwidth permitted
-        self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, self.camera.get_controls()['BandWidth']['MinValue'])
+        #self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, self.camera.get_controls()['BandWidth']['MinValue'])
+        self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 10)
 
         # Set some sensible defaults. They will need adjusting depending upon
         # the sensitivity, lens and lighting conditions used.
@@ -167,6 +168,11 @@ class timelapsecamera:
         for cn in sorted(self.controls.keys()):
             #print('%s: %s' %(cn,map(lambda x: "%s=>%s"%(x,repr(self.controls[cn][x])), list(self.controls[cn].keys()))))
             print('%s: %s' %(cn,", ".join(map(lambda x: "%s=>%s"%(x,repr(self.controls[cn][x])), list(self.controls[cn].keys())))))
+            print('  %s'%(self.camera.get_control_value(self.controls[cn]['ControlType'])))
+        p=self.camera.get_camera_property()
+        for cn in sorted(p.keys()):
+            print('%s: %s'%(cn,p[cn]))
+
 
 
     def set_bandwidth(self,b):
@@ -254,7 +260,7 @@ class timelapsecamera:
         return self.camera.capture_video_frame()
 
     def capture(self):
-        return self.camera.capture()
+        return self.camera.capture(initial_sleep=0.1,poll=0.1)
 
     # From https://stackoverflow.com/questions/71734861/opencv-python-lut-for-16bit-image
     def adjust_gamma16(self,image, gamma=1.0):
@@ -296,7 +302,8 @@ class timelapsecamera:
         elif t == asi.ASI_IMG_RAW8:
             return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma)
         elif t==asi.ASI_IMG_Y8:
-            return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma)
+            #return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_BAYER_BG2BGR),self.swgamma)
+            return self.adjust_gamma(cv2.cvtColor(pxls, cv2.COLOR_GRAY2BGR),self.swgamma)
         else: # Hopefully asi.ASI_IMG_RGB24
             return self.adjust_gamma(pxls,self.swgamma)
 

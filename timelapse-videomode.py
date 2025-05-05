@@ -34,8 +34,18 @@ parser.add_argument('--linkname', type=str, default="latest.jpg", help='Link to 
 parser.add_argument('--dirname', type=str, default="imgs/", help='Directory to save images')
 parser.add_argument('--binning', type=int, default=1, help='Image binning')
 parser.add_argument('--verbose',  default=False, action='store_true', help='Verbose')
+parser.add_argument('--debug',  default=False, action='store_true', help='Tracing calls to the camera object')
 
 args = parser.parse_args()
+
+if args.debug:
+    def trace_calls(frame, event, arg):
+        if event == 'call' and 'zwoasi/__init__.py' in frame.f_code.co_filename and 'zwoasi/__init__.py' not in frame.f_back.f_code.co_filename:
+
+            print(f'Calling function: {frame.f_code.co_qualname} args: {frame.f_locals}')
+        return trace_calls
+
+    sys.settrace(trace_calls)
 
 camera=timelapseutils.timelapsecamera(args.zwo_asi_lib)
 camera.opencamera(args.cameraname,verbose=args.verbose)
@@ -69,11 +79,14 @@ if args.gamma is not None:
 
 camera.set_swgamma(args.swgamma)
 
-camera.set_exposure(exp*1000,auto=False)
-camera.set_gain(min_gain,auto=True)
-brightmode=False
+#camera.set_exposure(exp*1000,auto=False)
+#camera.set_gain(min_gain,auto=True)
+#brightmode=False
+camera.set_exposure(exp*1000,auto=True)
+camera.set_gain(min_gain,auto=False)
+brightmode=True
 
-delay=0
+delay=5
 
 camera.start_video_capture()
 
@@ -83,9 +96,9 @@ while True:
 
     if args.verbose: print("New frame %s"%(dt.isoformat()))
 
-    pxls=camera.capture_video_frame()
-
     dt=datetime.datetime.utcnow()
+
+    pxls=camera.capture_video_frame()
 
     pxls=camera.postprocessBGR8(pxls)
 
@@ -112,7 +125,6 @@ while True:
                 delay=5
     else:
         delay-=1
-            
 
     camera.annotatemetadata(pxls,metadata,font=args.font,fontsize=args.fontsize)
 
