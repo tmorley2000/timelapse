@@ -22,6 +22,7 @@ parser.add_argument('--zwo-asi-lib', type=str, default=os.getenv('ZWO_ASI_LIB'),
 parser.add_argument('--cameraname', type=str, default=None, help='Name of camera to use, if not set will use the first camera found')
 parser.add_argument('--exp', type=int, default=15000, help='Maximum exposure and frame duration (ms)')
 parser.add_argument('--gain', type=int, default=200, help='Maximum gain (dB*10)')
+parser.add_argument('--mingain', type=int, default=None, help='Override minimum gain (dB*10)')
 parser.add_argument('--target', type=int, default=None, help='Target brightness for auto exposure')
 parser.add_argument('--gamma', type=int, default=None, help='Camera gamma correction (0-100, 50 default)')
 parser.add_argument('--swgamma', type=float, default=1.0, help='Software gamma correction (float, 1.0 default)')
@@ -58,14 +59,16 @@ gain=max(gain,camera.get_min_gain())
 gain=min(gain,camera.get_max_gain())
 
 min_gain=camera.get_min_gain()
+if args.mingain is not None and args.mingain>min_gain:
+    min_gain=args.mingain
 
 exp=args.exp
 exp=max(exp,camera.get_min_exposure())
 exp=min(exp,camera.get_max_exposure())
 
 print("Set max gain %d, max exp %d"%(gain,exp))
-camera.set_gain(min_gain,auto=False)
-camera.set_exposure(camera.get_min_exposure(),auto=True)
+#camera.set_gain(min_gain,auto=False)
+#camera.set_exposure(camera.get_min_exposure(),auto=True)
 camera.set_max_auto_gain(gain)
 camera.set_max_auto_exposure(exp)
 
@@ -117,7 +120,7 @@ while True:
                 delay=5
         else:
             print("gain=",camera.get_gain())
-            if camera.get_gain()==min_gain:
+            if camera.get_gain()<=min_gain:
                 camera.set_exposure(exp*1000,auto=True)
                 camera.set_gain(min_gain,auto=False)
                 brightmode=True
